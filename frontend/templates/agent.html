@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>瓦特智能体 - 瓦特微电网数字孪生仿真平台</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        /* 智能体专属样式 */
+        .agent-container {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 24px;
+            height: calc(100vh - 100px);
+        }
+        
+        /* 左侧知识库面板 */
+        .knowledge-panel {
+            background: linear-gradient(145deg, rgba(26, 26, 46, 0.9), rgba(18, 18, 31, 0.95));
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(201, 168, 108, 0.1);
+            border-radius: 18px;
+            padding: 24px;
+            overflow-y: auto;
+        }
+        
+        .panel-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        
+        .panel-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+        
+        .panel-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #fff;
+        }
+        
+        .knowledge-section {
+            margin-bottom: 28px;
+        }
+        
+        .section-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .knowledge-item {
+            padding: 14px 16px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-left: 3px solid var(--primary);
+            border-radius: 10px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.25s;
+        }
+        
+        .knowledge-item:hover {
+            background: rgba(201, 168, 108, 0.08);
+            border-color: var(--primary);
+            transform: translateX(4px);
+        }
+        
+        .knowledge-item-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+        
+        .knowledge-item-desc {
+            font-size: 12px;
+            color: rgba(255,255,255,0.6);
+        }
+        
+        /* 右侧对话区域 */
+        .chat-panel {
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(145deg, rgba(26, 26, 46, 0.9), rgba(18, 18, 31, 0.95));
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(201, 168, 108, 0.1);
+            border-radius: 18px;
+            overflow: hidden;
+        }
+        
+        .chat-header {
+            padding: 20px 28px;
+            background: rgba(255,255,255,0.03);
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .chat-header-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        
+        .agent-avatar {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            box-shadow: 0 4px 16px rgba(201, 168, 108, 0.3);
+        }
+        
+        .agent-info h2 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+        
+        .agent-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: rgba(255,255,255,0.6);
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #52c41a;
+            border-radius: 50%;
+            animation: statusPulse 2s infinite;
+        }
+        
+        .chat-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .action-btn {
+            padding: 8px 14px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            color: rgba(255,255,255,0.7);
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.25s;
+        }
+        
+        .action-btn:hover {
+            background: rgba(201, 168, 108, 0.1);
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+        
+        /* 消息区域 */
+        .messages-container {
+            flex: 1;
+            padding: 28px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .messages-container::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .messages-container::-webkit-scrollbar-thumb {
+            background: rgba(201, 168, 108, 0.3);
+            border-radius: 3px;
+        }
+        
+        .message {
+            display: flex;
+            gap: 12px;
+            max-width: 80%;
+            animation: messageSlideIn 0.3s ease;
+        }
+        
+        @keyframes messageSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .message.user {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+        
+        .message-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+        
+        .message.agent .message-avatar {
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+        }
+        
+        .message.user .message-avatar {
+            background: linear-gradient(135deg, #4dabff, #69c0ff);
+        }
+        
+        .message-content {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 14px;
+            padding: 14px 18px;
+            color: rgba(255,255,255,0.9);
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        
+        .message.user .message-content {
+            background: linear-gradient(135deg, rgba(201, 168, 108, 0.15), rgba(201, 168, 108, 0.08));
+            border-color: rgba(201, 168, 108, 0.2);
+        }
+        
+        .message-time {
+            font-size: 11px;
+            color: rgba(255,255,255,0.4);
+            margin-top: 6px;
+        }
+        
+        .typing-indicator {
+            display: flex;
+            gap: 6px;
+            padding: 10px;
+        }
+        
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--primary);
+            border-radius: 50%;
+            animation: typingBounce 1.4s infinite;
+        }
+        
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        
+        @keyframes typingBounce {
+            0%, 60%, 100% {
+                transform: translateY(0);
+            }
+            30% {
+                transform: translateY(-8px);
+            }
+        }
+        
+        /* 输入区域 */
+        .input-area {
+            padding: 20px 28px;
+            background: rgba(255,255,255,0.02);
+            border-top: 1px solid rgba(255,255,255,0.08);
+        }
+        
+        .input-wrapper {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+        
+        .input-container {
+            flex: 1;
+            position: relative;
+        }
+        
+        .chat-input {
+            width: 100%;
+            min-height: 48px;
+            max-height: 120px;
+            padding: 14px 50px 14px 18px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 14px;
+            color: #fff;
+            font-size: 14px;
+            font-family: 'Noto Sans SC', sans-serif;
+            resize: none;
+            transition: all 0.25s;
+        }
+        
+        .chat-input:focus {
+            outline: none;
+            background: rgba(255,255,255,0.08);
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(201, 168, 108, 0.1);
+        }
+        
+        .chat-input::placeholder {
+            color: rgba(255,255,255,0.4);
+        }
+        
+        .input-actions {
+            position: absolute;
+            right: 12px;
+            bottom: 12px;
+            display: flex;
+            gap: 6px;
+        }
+        
+        .input-action {
+            width: 32px;
+            height: 32px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.25s;
+            font-size: 16px;
+        }
+        
+        .input-action:hover {
+            background: rgba(201, 168, 108, 0.1);
+            border-color: var(--primary);
+        }
+        
+        .send-btn {
+            padding: 14px 28px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            border: none;
+            border-radius: 14px;
+            color: #1a1a2e;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .send-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(201, 168, 108, 0.4);
+        }
+        
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        /* 欢迎卡片 */
+        .welcome-card {
+            text-align: center;
+            padding: 60px 40px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .welcome-icon {
+            font-size: 72px;
+            margin-bottom: 24px;
+        }
+        
+        .welcome-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 12px;
+        }
+        
+        .welcome-desc {
+            font-size: 15px;
+            color: rgba(255,255,255,0.6);
+            line-height: 1.8;
+            margin-bottom: 32px;
+        }
+        
+        .quick-questions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        
+        .quick-question {
+            padding: 16px 20px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 12px;
+            color: rgba(255,255,255,0.8);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.25s;
+            text-align: left;
+        }
+        
+        .quick-question:hover {
+            background: rgba(201, 168, 108, 0.1);
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+        
+        .quick-question-icon {
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="logo">
+            <div class="logo-icon">W</div>
+            <div class="logo-text">瓦特<span>微电网</span></div>
+        </div>
+        <ul class="nav-links">
+            <li><a href="/">首页</a></li>
+            <li><a href="/dashboard">仪表盘</a></li>
+            <li><a href="/visualization">3D可视化</a></li>
+            <li><a href="/storage">储能详情</a></li>
+            <li><a href="/trading">电力交易</a></li>
+            <li><a href="/agent" class="active">瓦特智能体</a></li>
+            <li><a href="/opendata">开源数据</a></li>
+        </ul>
+        <div class="status-indicator">
+            <span class="status-dot online"></span>
+            <span>系统在线</span>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <div class="agent-container">
+            <!-- 左侧知识库 -->
+            <div class="knowledge-panel">
+                <div class="panel-header">
+                    <div class="panel-icon">🧠</div>
+                    <div>
+                        <div class="panel-title">知识库</div>
+                    </div>
+                </div>
+                
+                <div class="knowledge-section">
+                    <div class="section-title">系统架构</div>
+                    <div class="knowledge-item" onclick="askQuestion('介绍一下微电网的系统架构')">
+                        <div class="knowledge-item-title">🏗️ 系统架构</div>
+                        <div class="knowledge-item-desc">微电网整体架构设计</div>
+                    </div>
+                    <div class="knowledge-item" onclick="askQuestion('有哪些分布式能源设备？')">
+                        <div class="knowledge-item-title">⚡ 能源设备</div>
+                        <div class="knowledge-item-desc">分布式能源设备清单</div>
+                    </div>
+                    <div class="knowledge-item" onclick="askQuestion('数据采集系统是如何工作的？')">
+                        <div class="knowledge-item-title">📡 数据采集</div>
+                        <div class="knowledge-item-desc">实时数据采集与监控</div>
+                    </div>
+                </div>
+                
+                <div class="knowledge-section">
+                    <div class="section-title">核心功能</div>
+                    <div class="knowledge-item" onclick="askQuestion('解释一下仿真引擎的工作原理')">
+                        <div class="knowledge-item-title">🔄 仿真引擎</div>
+                        <div class="knowledge-item-desc">高精度数字孪生仿真</div>
+                    </div>
+                    <div class="knowledge-item" onclick="askQuestion('AI预测算法是如何实现的？')">
+                        <div class="knowledge-item-title">🤖 AI预测</div>
+                        <div class="knowledge-item-desc">负荷与新能源预测</div>
+                    </div>
+                    <div class="knowledge-item" onclick="askQuestion('优化调度策略有哪些？')">
+                        <div class="knowledge-item-title">📊 优化调度</div>
+                        <div class="knowledge-item-desc">经济调度与能量管理</div>
+                    </div>
+                    <div class="knowledge-item" onclick="askQuestion('模型标定如何提升精度？')">
+                        <div class="knowledge-item-title">🎯 模型标定</div>
+                        <div class="knowledge-item-desc">自适应参数优化</div>
+                    </div>
+                </div>
+                
+                <div class="knowledge-section">
+                    <div class="section-title">应用场景</div>
+                    <div class="knowledge-item" onclick="askQuestion('工商业微电网的典型应用')">
+                        <div class="knowledge-item-title">🏭 工商业</div>
+                        <div class="knowledge-item-desc">园区级能源管理</div>
+                    </div>
+                    <div class="knowledge-item" onclick="askQuestion('光储充一体化方案介绍')">
+                        <div class="knowledge-item-title">🚗 光储充</div>
+                        <div class="knowledge-item-desc">V2G双向充电系统</div>
+                    </div>
+                    <div class="knowledge-item" onclick="askQuestion('储能电站的管理细节')">
+                        <div class="knowledge-item-title">🔋 储能电站</div>
+                        <div class="knowledge-item-desc">大规模电池管理</div>
+                    </div>
+                    <div class="knowledge-item" onclick="askQuestion('电力交易如何进行？')">
+                        <div class="knowledge-item-title">💰 电力交易</div>
+                        <div class="knowledge-item-desc">市场化交易策略</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 右侧对话区 -->
+            <div class="chat-panel">
+                <div class="chat-header">
+                    <div class="chat-header-left">
+                        <div class="agent-avatar">🤖</div>
+                        <div class="agent-info">
+                            <h2>瓦特智能助手</h2>
+                            <div class="agent-status">
+                                <span class="status-dot"></span>
+                                <span>在线 · 基于GPT-4架构</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chat-actions">
+                        <button class="action-btn" onclick="clearChat()">🗑️ 清空</button>
+                        <button class="action-btn" onclick="exportChat()">📥 导出</button>
+                    </div>
+                </div>
+                
+                <div class="messages-container" id="messagesContainer">
+                    <!-- 欢迎卡片 -->
+                    <div class="welcome-card" id="welcomeCard">
+                        <div class="welcome-icon">🚀</div>
+                        <h1 class="welcome-title">欢迎使用瓦特智能体</h1>
+                        <p class="welcome-desc">
+                            我是您的专属微电网助手，可以帮您解答关于系统架构、运行原理、优化策略等各类问题。<br>
+                            您也可以直接点击左侧知识库，快速获取相关信息。
+                        </p>
+                        <div class="quick-questions">
+                            <div class="quick-question" onclick="askQuestion('微电网系统包含哪些核心组件？')">
+                                <span class="quick-question-icon">🔧</span>核心组件介绍
+                            </div>
+                            <div class="quick-question" onclick="askQuestion('如何进行经济调度优化？')">
+                                <span class="quick-question-icon">📈</span>经济调度优化
+                            </div>
+                            <div class="quick-question" onclick="askQuestion('AI预测模型的准确率如何？')">
+                                <span class="quick-question-icon">🎯</span>预测准确率
+                            </div>
+                            <div class="quick-question" onclick="askQuestion('数字孪生技术的优势是什么？')">
+                                <span class="quick-question-icon">💡</span>数字孪生优势
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="input-area">
+                    <div class="input-wrapper">
+                        <div class="input-container">
+                            <textarea 
+                                id="chatInput" 
+                                class="chat-input" 
+                                placeholder="输入您的问题... (Shift+Enter 换行，Enter 发送)"
+                                rows="1"
+                                onkeydown="handleKeyDown(event)"
+                            ></textarea>
+                            <div class="input-actions">
+                                <div class="input-action" title="上传文件">📎</div>
+                            </div>
+                        </div>
+                        <button class="send-btn" onclick="sendMessage()">
+                            <span>发送</span>
+                            <span>✈️</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let chatHistory = [];
+        
+        // 自动调整输入框高度
+        const chatInput = document.getElementById('chatInput');
+        chatInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+        });
+        
+        // 处理键盘事件
+        function handleKeyDown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+        
+        // 快速提问
+        function askQuestion(question) {
+            document.getElementById('chatInput').value = question;
+            sendMessage();
+        }
+        
+        // 发送消息
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            // 隐藏欢迎卡片
+            const welcomeCard = document.getElementById('welcomeCard');
+            if (welcomeCard) {
+                welcomeCard.style.display = 'none';
+            }
+            
+            // 添加用户消息
+            addMessage('user', message);
+            input.value = '';
+            input.style.height = 'auto';
+            
+            // 显示打字指示器
+            showTypingIndicator();
+            
+            // 模拟AI回复（实际应该调用后端API）
+            setTimeout(() => {
+                hideTypingIndicator();
+                const response = generateResponse(message);
+                addMessage('agent', response);
+            }, 1500);
+        }
+        
+        // 添加消息
+        function addMessage(type, content) {
+            const container = document.getElementById('messagesContainer');
+            const time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            messageDiv.innerHTML = `
+                <div class="message-avatar">${type === 'user' ? '👤' : '🤖'}</div>
+                <div>
+                    <div class="message-content">${content}</div>
+                    <div class="message-time">${time}</div>
+                </div>
+            `;
+            
+            container.appendChild(messageDiv);
+            container.scrollTop = container.scrollHeight;
+            
+            chatHistory.push({ type, content, time });
+        }
+        
+        // 显示打字指示器
+        function showTypingIndicator() {
+            const container = document.getElementById('messagesContainer');
+            const indicator = document.createElement('div');
+            indicator.id = 'typingIndicator';
+            indicator.className = 'message agent';
+            indicator.innerHTML = `
+                <div class="message-avatar">🤖</div>
+                <div class="message-content">
+                    <div class="typing-indicator">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                    </div>
+                </div>
+            `;
+            container.appendChild(indicator);
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        // 隐藏打字指示器
+        function hideTypingIndicator() {
+            const indicator = document.getElementById('typingIndicator');
+            if (indicator) {
+                indicator.remove();
+            }
+        }
+        
+        // 生成回复（模拟智能回复，实际应调用后端API）
+        function generateResponse(question) {
+            const responses = {
+                '介绍一下微电网的系统架构': '瓦特微电网系统采用分层架构设计：\n\n1. **设备层**：包括光伏发电系统、风力发电机、储能电池、柴油发电机等分布式能源设备\n2. **控制层**：实时监控与优化调度，实现能量平衡与经济运行\n3. **通信层**：工业级通信协议，确保数据实时可靠传输\n4. **应用层**：数字孪生仿真、AI预测、优化调度、3D可视化等\n\n系统支持孤岛运行和并网运行两种模式，具备毫秒级响应能力。',
+                
+                '有哪些分布式能源设备？': '我们的微电网集成了多种分布式能源设备：\n\n**可再生能源：**\n• 光伏发电系统：500kWp，采用高效单晶硅组件\n• 风力发电机：50kW，永磁直驱技术\n\n**储能系统：**\n• 磷酸铁锂电池：500kWh容量\n• 飞轮储能：快速响应，用于频率调节\n\n**备用电源：**\n• 柴油发电机：200kW，应急备用\n• 燃料电池：清洁备用电源\n\n**负荷设备：**\n• 工业负荷、商业负荷、充电桩等',
+                
+                '数据采集系统是如何工作的？': '数据采集系统采用分布式架构：\n\n**硬件层面：**\n• 智能传感器：实时采集电压、电流、功率、SOC等数据\n• 边缘计算网关：预处理数据，降低通信负担\n• 工业以太网：毫秒级数据传输\n\n**软件层面：**\n• 数据清洗：剔除异常值\n• 时间同步：GPS授时，确保数据一致性\n• 数据压缩：智能压缩算法，节省存储\n• 实时入库：时序数据库存储\n\n采样频率可达100ms，确保高精度实时监控。',
+                
+                '解释一下仿真引擎的工作原理': '数字孪生仿真引擎是我们的核心技术：\n\n**建模方法：**\n• 物理建模：基于电气原理的精确数学模型\n• 数据驱动：机器学习辅助建模\n• 混合建模：物理+AI深度融合\n\n**仿真流程：**\n1. 状态初始化：设定初始运行状态\n2. 时间推进：采用变步长算法\n3. 设备建模：每个设备的精确动态特性\n4. 能量平衡：实时计算功率流\n5. 结果输出：可视化展示\n\n**特色功能：**\n• 支持365天8760小时全年仿真\n• 考虑天气变化、负荷波动\n• 精度可达±3%以内',
+                
+                'AI预测算法是如何实现的？': 'AI预测系统采用多模型融合架构：\n\n**负荷预测：**\n• LSTM长短期记忆网络：捕捉时序规律\n• XGBoost：处理非线性特征\n• 注意力机制：关注关键影响因素\n\n**新能源预测：**\n• 光伏：结合天气预报、辐照度预测\n• 风电：风速预测+功率曲线映射\n• 集成学习：多模型投票\n\n**优化策略：**\n• 滚动预测：每小时更新\n• 多时间尺度：日前、小时、15分钟\n• 置信区间：给出预测不确定性\n\n当前预测精度：负荷预测MAPE<5%，光伏预测RMSE<8%',
+                
+                '优化调度策略有哪些？': '我们提供多层次优化调度策略：\n\n**经济调度：**\n• 目标：最小化运行成本\n• 考虑：电价、燃料成本、设备损耗\n• 算法：混合整数规划（MILP）\n\n**峰谷套利：**\n• 低谷充电：利用低电价时段储能\n• 高峰放电：高电价时段售电\n• 收益最大化：动态调整策略\n\n**安全约束：**\n• SOC范围：20%-90%\n• 功率平衡：发用电实时平衡\n• 设备保护：避免过载\n\n**多目标优化：**\n• 经济性 vs 可靠性\n• 碳排放最小化\n• 用户自定义权重',
+                
+                '模型标定如何提升精度？': '模型标定是持续优化的关键：\n\n**标定对象：**\n• 光伏模型：最大功率点、温度系数\n• 风机模型：功率曲线、切入/切出风速\n• 电池模型：容量、内阻、SOC-OCV曲线\n• 负荷模型：基线负荷、波动特性\n\n**标定方法：**\n• 参数辨识：最小二乘法、卡尔曼滤波\n• 遗传算法：全局搜索最优参数\n• 粒子群优化：快速收敛\n\n**自动化流程：**\n1. 数据采集：收集实际运行数据\n2. 仿真对比：模拟相同工况\n3. 误差计算：实测vs仿真\n4. 参数更新：自动调整模型\n5. 验证测试：新数据验证\n\n标定后精度可提升30%以上！',
+                
+                '微电网系统包含哪些核心组件？': '微电网核心组件包括：\n\n**能源侧：**\n• 光伏阵列 (500kWp)\n• 风力发电机 (50kW)\n• 储能系统 (500kWh)\n• 柴油发电机 (200kW备用)\n\n**控制侧：**\n• 能量管理系统 (EMS)\n• 微网控制器 (MGC)\n• 保护装置\n\n**通信侧：**\n• 数据采集系统\n• SCADA平台\n• 云端服务器\n\n**应用侧：**\n• 3D可视化平台\n• AI预测引擎\n• 优化调度算法',
+                
+                '如何进行经济调度优化？': '经济调度优化核心流程：\n\n**1. 预测准备**\n• 负荷预测（未来24小时）\n• 光伏/风电出力预测\n• 电价预测（峰谷平时段）\n\n**2. 建立优化模型**\n• 目标函数：min(运行成本+电池损耗)\n• 约束条件：功率平衡、SOC范围、设备容量\n\n**3. 求解算法**\n• 混合整数规划\n• 滚动优化（每小时更新）\n\n**4. 执行策略**\n• 实时下发控制指令\n• 动态调整应对偏差\n\n典型收益：相比无优化策略可节省20-30%电费',
+                
+                'AI预测模型的准确率如何？': 'AI预测模型性能指标：\n\n**负荷预测：**\n• 日前预测MAPE：4.8%\n• 超短期预测（15分钟）：2.3%\n• 准确率持续提升中\n\n**光伏功率预测：**\n• 晴天条件：RMSE<5%\n• 多云条件：RMSE<10%\n• 阴雨天：RMSE<15%\n\n**风电预测：**\n• 24小时预测：RMSE<12%\n• 考虑气象预报不确定性\n\n**持续优化：**\n• 在线学习：模型自动更新\n• 迁移学习：跨场景复用\n• 集成学习：多模型融合\n\n实际应用中，预测准确率远超行业平均水平！',
+                
+                '数字孪生技术的优势是什么？': '数字孪生技术为微电网带来革命性优势：\n\n**1. 虚拟调试**\n• 新策略上线前先仿真验证\n• 避免实际系统风险\n• 缩短调试周期50%\n\n**2. 场景演练**\n• 模拟极端天气\n• 设备故障演练\n• 应急预案优化\n\n**3. 决策支持**\n• 实时仿真辅助调度\n• 多方案对比\n• 预测未来趋势\n\n**4. 培训工具**\n• 操作人员培训\n• 零风险实操\n• 降低培训成本\n\n**5. 持续改进**\n• 模型不断优化\n• 策略持续迭代\n• 性能逐步提升\n\n数字孪生是实现智能化运维的基石！',
+            };
+            
+            // 查找最匹配的回答
+            for (let key in responses) {
+                if (question.includes(key) || key.includes(question)) {
+                    return responses[key];
+                }
+            }
+            
+            // 默认回复
+            return `感谢您的提问！关于"${question}"的详细信息，我建议您：\n\n1. 查看左侧知识库中的相关主题\n2. 访问仪表盘查看实时运行数据\n3. 在3D可视化中观察系统运行状态\n4. 阅读系统文档获取更多技术细节\n\n如果您有其他问题，欢迎继续提问！我会尽力为您解答。`;
+        }
+        
+        // 清空对话
+        function clearChat() {
+            if (confirm('确定要清空所有对话记录吗？')) {
+                const container = document.getElementById('messagesContainer');
+                container.innerHTML = '';
+                chatHistory = [];
+                
+                // 重新显示欢迎卡片
+                const welcomeCard = document.createElement('div');
+                welcomeCard.id = 'welcomeCard';
+                welcomeCard.className = 'welcome-card';
+                welcomeCard.innerHTML = `
+                    <div class="welcome-icon">🚀</div>
+                    <h1 class="welcome-title">欢迎使用瓦特智能体</h1>
+                    <p class="welcome-desc">
+                        我是您的专属微电网助手，可以帮您解答关于系统架构、运行原理、优化策略等各类问题。<br>
+                        您也可以直接点击左侧知识库，快速获取相关信息。
+                    </p>
+                    <div class="quick-questions">
+                        <div class="quick-question" onclick="askQuestion('微电网系统包含哪些核心组件？')">
+                            <span class="quick-question-icon">🔧</span>核心组件介绍
+                        </div>
+                        <div class="quick-question" onclick="askQuestion('如何进行经济调度优化？')">
+                            <span class="quick-question-icon">📈</span>经济调度优化
+                        </div>
+                        <div class="quick-question" onclick="askQuestion('AI预测模型的准确率如何？')">
+                            <span class="quick-question-icon">🎯</span>预测准确率
+                        </div>
+                        <div class="quick-question" onclick="askQuestion('数字孪生技术的优势是什么？')">
+                            <span class="quick-question-icon">💡</span>数字孪生优势
+                        </div>
+                    </div>
+                `;
+                container.appendChild(welcomeCard);
+            }
+        }
+        
+        // 导出对话
+        function exportChat() {
+            if (chatHistory.length === 0) {
+                alert('暂无对话记录可导出');
+                return;
+            }
+            
+            let content = '瓦特微电网智能体对话记录\n';
+            content += '导出时间：' + new Date().toLocaleString('zh-CN') + '\n';
+            content += '='.repeat(50) + '\n\n';
+            
+            chatHistory.forEach(msg => {
+                content += `[${msg.time}] ${msg.type === 'user' ? '用户' : '智能体'}：\n`;
+                content += msg.content + '\n\n';
+            });
+            
+            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `对话记录_${new Date().getTime()}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
+

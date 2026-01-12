@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>开源数据 - 瓦特微电网数字孪生仿真平台</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        /* 开源数据专属样式 */
+        .opendata-container {
+            display: flex;
+            flex-direction: column;
+            gap: 32px;
+        }
+        
+        /* 页面标题区域 */
+        .page-header {
+            text-align: center;
+            margin-bottom: 16px;
+        }
+        
+        .page-title {
+            font-size: 32px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #fff 0%, var(--primary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 12px;
+        }
+        
+        .page-subtitle {
+            font-size: 16px;
+            color: rgba(255,255,255,0.6);
+            max-width: 700px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+        
+        /* 分类导航 */
+        .category-nav {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+        
+        .category-btn {
+            padding: 12px 28px;
+            border: none;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
+            color: rgba(255,255,255,0.6);
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .category-btn:hover {
+            background: rgba(255,255,255,0.06);
+            color: rgba(255,255,255,0.9);
+            transform: translateY(-2px);
+        }
+        
+        .category-btn.active {
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            color: #1a1a2e;
+            font-weight: 600;
+            box-shadow: 0 4px 16px rgba(201, 168, 108, 0.35);
+        }
+        
+        .category-btn .icon {
+            font-size: 18px;
+        }
+        
+        /* 数据分类区块 */
+        .data-section {
+            display: none;
+        }
+        
+        .data-section.active {
+            display: block;
+            animation: fadeIn 0.4s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .section-icon {
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+        }
+        
+        .section-info h2 {
+            font-size: 24px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+        
+        .section-info p {
+            font-size: 14px;
+            color: rgba(255,255,255,0.5);
+        }
+        
+        /* 数据卡片网格 */
+        .data-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+            gap: 24px;
+        }
+        
+        .data-card {
+            background: linear-gradient(145deg, rgba(26, 26, 46, 0.9), rgba(18, 18, 31, 0.95));
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(201, 168, 108, 0.08);
+            border-radius: 18px;
+            padding: 24px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .data-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary), var(--primary-light));
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .data-card:hover {
+            border-color: rgba(201, 168, 108, 0.2);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+        }
+        
+        .data-card:hover::before {
+            opacity: 1;
+        }
+        
+        .card-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        
+        .card-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            flex-shrink: 0;
+        }
+        
+        .card-icon.microgrid { background: rgba(77, 171, 255, 0.15); }
+        .card-icon.storage { background: rgba(82, 196, 26, 0.15); }
+        .card-icon.battery { background: rgba(250, 173, 20, 0.15); }
+        .card-icon.renewable { background: rgba(24, 144, 255, 0.15); }
+        
+        .card-title-group {
+            flex: 1;
+        }
+        
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 6px;
+            line-height: 1.3;
+        }
+        
+        .card-subtitle {
+            font-size: 12px;
+            color: var(--primary);
+            font-weight: 500;
+        }
+        
+        .card-tags {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 14px;
+        }
+        
+        .tag {
+            padding: 4px 10px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 6px;
+            font-size: 11px;
+            color: rgba(255,255,255,0.7);
+        }
+        
+        .card-brief {
+            font-size: 14px;
+            color: rgba(255,255,255,0.7);
+            line-height: 1.6;
+            margin-bottom: 16px;
+        }
+        
+        .card-detail {
+            font-size: 13px;
+            color: rgba(255,255,255,0.5);
+            line-height: 1.7;
+            padding: 14px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 10px;
+            margin-bottom: 18px;
+            display: none;
+        }
+        
+        .card-detail.show {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .card-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-top: 16px;
+            border-top: 1px solid rgba(255,255,255,0.06);
+        }
+        
+        .card-meta {
+            display: flex;
+            gap: 16px;
+            font-size: 12px;
+            color: rgba(255,255,255,0.5);
+        }
+        
+        .card-meta span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .card-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn-detail {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.06);
+            color: rgba(255,255,255,0.8);
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.25s;
+        }
+        
+        .btn-detail:hover {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+        }
+        
+        .btn-link {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            color: #1a1a2e;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.25s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .btn-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(201, 168, 108, 0.4);
+        }
+        
+        /* 统计信息 */
+        .stats-bar {
+            display: flex;
+            justify-content: center;
+            gap: 48px;
+            padding: 20px;
+            background: rgba(255,255,255,0.02);
+            border-radius: 14px;
+            margin-bottom: 8px;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 4px;
+        }
+        
+        .stat-label {
+            font-size: 13px;
+            color: rgba(255,255,255,0.5);
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">
+            <div class="logo-icon">W</div>
+            <div class="logo-text">瓦特<span>微电网</span></div>
+        </div>
+        <ul class="nav-links">
+            <li><a href="/">首页</a></li>
+            <li><a href="/dashboard">仪表盘</a></li>
+            <li><a href="/visualization">3D可视化</a></li>
+            <li><a href="/storage">储能详情</a></li>
+            <li><a href="/trading">电力交易</a></li>
+            <li><a href="/agent">瓦特智能体</a></li>
+            <li><a href="/opendata" class="active">开源数据</a></li>
+        </ul>
+        <div class="status-indicator">
+            <span class="status-dot online"></span>
+            <span>系统在线</span>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <div class="opendata-container">
+            <!-- 页面标题 -->
+            <div class="page-header">
+                <h1 class="page-title">🔓 开源数据资源库</h1>
+                <p class="page-subtitle">汇集全球微电网、储能系统、电池技术与可再生能源领域的高质量开源数据集，助力科研创新与工程实践</p>
+            </div>
+            
+            <!-- 统计概览 -->
+            <div class="stats-bar">
+                <div class="stat-item">
+                    <div class="stat-value">24+</div>
+                    <div class="stat-label">数据集</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">4</div>
+                    <div class="stat-label">分类</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">15+</div>
+                    <div class="stat-label">数据来源</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value">100TB+</div>
+                    <div class="stat-label">数据规模</div>
+                </div>
+            </div>
+            
+            <!-- 分类导航 -->
+            <div class="category-nav">
+                <button class="category-btn active" onclick="showCategory('microgrid')">
+                    <span class="icon">🏭</span> 微电网数据
+                </button>
+                <button class="category-btn" onclick="showCategory('storage')">
+                    <span class="icon">🔋</span> 储能系统
+                </button>
+                <button class="category-btn" onclick="showCategory('battery')">
+                    <span class="icon">⚡</span> 电池数据
+                </button>
+                <button class="category-btn" onclick="showCategory('renewable')">
+                    <span class="icon">🌱</span> 可再生能源
+                </button>
+            </div>
+            
+            <!-- 微电网数据 -->
+            <div class="data-section active" id="section-microgrid">
+                <div class="section-header">
+                    <div class="section-icon">🏭</div>
+                    <div class="section-info">
+                        <h2>微电网数据集</h2>
+                        <p>包含微电网系统设计、运行优化、能源调度等领域的开源数据</p>
+                    </div>
+                </div>
+                <div class="data-grid">
+                    <!-- 卡片1 -->
+                    <div class="data-card">
+                        <div class="card-header">
+                            <div class="card-icon microgrid">🌍</div>
+                            <div class="card-title-group">
+                                <div class="card-title">PyPSA-Eur</div>
+                                <div class="card-subtitle">欧洲输电系统优化模型</div>
+                            </div>
+                        </div>
+                        <div class="card-tags">
+                            <span class="tag">输电网络</span>
+                            <span class="tag">优化模型</span>
+                            <span class="tag">Python</span>
+                        </div>
+                        <div class="card-brief">首个涵盖整个ENTSO-E区域的欧洲电力系统开源模型，包含6001条输电线路、3657个变电站及时间序列数据。</div>
+                        <div class="card-detail" id="detail-pypsa">
+                            PyPSA-Eur提供了一个全面的欧洲电力系统模型，支持对可再生能源整合、输电网络优化等问题的研究。其大陆范围和高分辨率的空间尺度使其能够准确描述可再生能源发电的长距离平滑效应及其资源可用性的变化。开放的数据和自动化的软件流程使研究人员能够轻松地替换和改进各个部分。
+                        </div>
+                        <div class="card-footer">
+                            <div class="card-meta">
+                                <span>📅 2018</span>
+                                <span>🏛️ TU Berlin</span>
+                            </div>
+                            <div class="card-actions">
+                                <button class="btn-detail" onclick="toggleDetail('pypsa')">详情</button>
+                                <a href="https://github.com/PyPSA/pypsa-eur" target="_blank" class="btn-link">访问 →</a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 卡片2 -->
+                    <div class="data-card">
+                        <div class="card-header">
+                            <div class="card-icon microgrid">🏠</div>
+                            <div class="card-title-group">
+                                <div class="card-title">Pecan Street Dataport</div>
+                                <div class="card-subtitle">家庭能源消耗数据平台</div>
+                            </div>
+                        </div>
+                        <div class="card-tags">
+                            <span class="tag">家庭能耗</span>
+                            <span class="tag">太阳能</span>
+                            <span class="tag">高分辨率</span>
+                        </div>
+                        <div class="card-brief">提供来自数百个家庭的高分辨率能源消耗数据，包括电力使用、太阳能发电和电动汽车充电数据。</div>
+                        <div class="card-detail" id="detail-pecan">
+                            Pecan Street Dataport是一个开放的数据平台，收集了家庭级别的电力使用、太阳能发电和电动汽车充电数据。数据以1秒、15秒、1分钟等多种分辨率提供，覆盖美国多个城市，旨在支持能源研究和创新。研究人员可免费申请学术访问权限。
+                        </div>
+                        <div class="card-footer">
+                            <div class="card-meta">
+                                <span>📅 持续更新</span>
+                                <span>🏛️ Pecan Street</span>
+                            </div>
+                            <div class="card-actions">
+                                <button class="btn-detail" onclick="toggleDetail('pecan')">详情</button>
+                                <a href="https://dataport.pecanstreet.org/" target="_blank" class="btn-link">访问 →</a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 卡片3 -->
+                    <div class="data-card">
+                        <div class="card-header">
+                            <div class="card-icon microgrid">📊</div>
+                            <div class="card-title-group">
+                                <div class="card-title">OpenEI Microgrid Database</div>
+                                <div class="card-subtitle">全球微电网项目数据库</div>
+                            </div>
+                        </div>
+                        <div class="card-tags">
+                            <span class="tag">微电网项目</span>
+                            <span class="tag">全球数据</span>
+                            <span class="tag">DOE</span>
+                        </div>
+                        <div class="card-brief">由美国能源部支持，包含全球范围内的微电网项目信息，支持研究和分析。</div>
+                        <div class="card-detail" id="detail-openei">
+                            OpenEI的微电网数据库提供了关于微电网项目的位置、规模、技术和性能的详细数据，涵盖社区微电网、军事基地微电网、商业/工业微电网等多种类型，旨在促进微电网技术的发展和部署。
+                        </div>
+                        <div class="card-footer">
+                            <div class="card-meta">
+                                <span>📅 持续更新</span>
+                                <span>🏛️ NREL/DOE</span>
+                            </div>
+                            <div class="card-actions">
+                                <button class="btn-detail" onclick="toggleDetail('openei')">详情</button>
+                                <a href="https://openei.org/wiki/Microgrid_Database" target="_blank" class="btn-link">访问 →</a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 卡片4 -->
+                    <div class="data-card">
+                        <div class="card-header">
+                            <div class="card-icon microgrid">🔌</div>
+                            <div class="card-title-group">
+                                <div class="card-title">UK Power Networks</div>
+                                <div class="card-subtitle">英国配电网数据</div>
+                            </div>
+                        </div>
+                        <div class="card-tags">
+                            <span class="tag">配电网</span>
+                            <span class="tag">负荷数据</span>
+                            <span class="tag">英国</span>
+                        </div>
+                        <div class="card-brief">英国电力网络公司开放的配电网数据，包含负荷曲线、网络拓扑和智能电表数据。</div>
+                        <div class="card-detail" id="detail-ukpn">
+                            UK Power Networks Open Data Portal提供了丰富的配电网运行数据，包括变压器负荷、低压网络监测数据、智能电表聚合数据等。数据支持配电网规划、需求响应研究和分布式能源集成分析。
+                        </div>
+                        <div class="card-footer">
+                            <div class="card-meta">
+                                <span>📅 持续更新</span>
+                                <span>🏛️ UKPN</span>
+                            </div>
+                            <div class="card-actions">
+                                <button class="btn-detail" onclick="toggleDetail('ukpn')">详情</button>
+                                <a href="https://ukpowernetworks.opendatasoft.com/" target="_blank" class="btn-link">访问 →</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 储能系统数据 -->
+            <div class="data-section" id="section-storage">
+                <div class="section-header">
+                    <div class="section-icon">🔋</div>
+                    <div class="section-info">
+                        <h2>储能系统数据集</h2>
+                        <p>涵盖储能电站运行、充放电策略、V2G充电等领域的开源数据</p>
+                    </div>
+                </div>
+                <div class="data-grid">
+                    <!-- 卡片1 -->
+                    <div class="data-card">
+                        <div class="card-header">
+                            <div class="card-icon storage">🌐</div>
+                            <div class="card-title-group">
+                                <div class="card-title">DOE Global Energy Storage Database</div>
+                                <div class="card-subtitle">全球储能项目数据库</div>
+                            </div>
+                        </div>
+                        <div class="card-tags">
+                            <span class="tag">储能项目</span>
+                            <span class="tag">全球数据</span>
+                            <span class="tag">Sandia</span>
+                        </div>
+                        <div class="card-brief">由美国能源部Sandia国家实验室维护，涵盖全球范围内的储能项目详细信息。</div>
+                        <div class="card-detail" id="detail-gesdb">
+                            该数据库提供了全球储能项目的详细信息，包括技术类型（锂电池、抽水蓄能、飞轮等）、容量、应用场景、项目状态等。用户可以通过该数据库查询和分析不同类型的储能项目，了解其技术参数和性能指标。
+                        </div>
+                        <div class="card-footer">
+                            <div class="card-meta">
+                                <span>📅 持续更新</span>
+                                <span>🏛️ Sandia Labs</span>
+                            </div>
+                            <div class="card-actions">
+                                <button class="btn-detail" onclick="toggleDetail('gesdb')">详情</button>
+                                <a href="https://sandia.gov/ess-ssl/gesdb/public/" target="_blank" class="btn-link">访问 →</a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 卡片2 -->
+                    <div class="data-card">
+                        <div class="card-header">
+                            <div class="card-icon storage">🚗</div>
+                            <div class="card-title-group">
+                                <div class="card-title">ACN-Data</div>
+                                <div class="card-subtitle">电动汽车充电数据集</div>
+                            </div>
+                        </div>
+                        <div class="card-tags">
+                            <span class="tag">EV充电</span>
+                            <span class="tag">加州理工</span>
+                            <span class="tag">实时数据</span>
+                        </div>
+                        <div class="card-brief">来自加州理工学院的自适应充电网络数据，包含数万次真实EV充电会话记录。</div>
+                        <div class="card-detail" id="detail-acndata">
+                            ACN-Data是一个开放的EV充电会话数据集，收集自Caltech和JPL的充电站。数据包括到达时间、离开时间、能量需求、充电功率等信息。配套的ACN-Sim模拟器支持强化学习算法的开发和验证。
+                        </div>
+                        <div class="card-footer">
+                            <div class="card-meta">
+                                <span>📅 2018-至今</span>
+                                <span>🏛️ Caltech</span>
+                            </div>
+                            <div class="card-actions">
+                                <button class="btn-detail" onclick="toggleDetail('acndata')">详情</button>
+                                <a href="https://ev.caltech.edu/dataset" target="_blank" class="btn-link">访问 →</a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 卡片3 -->
+                    <div class="data-card">
+                        <div class="card-header">
+                            <div class="card-icon storage">📈</div>
+                            <div class="card-title-group">
+                                <div class="card-title">ESMAP Energy Storage</div>
+                                <div class="card-subtitle">世界银行储能数据库</div>
+                            </div>
+                        </div>
+                        <div class="card-tags">
+                            <span class="tag">发展中国家</span>
+                            <span class="tag">政策分析</span>
+                            <span class="tag">案例研究</span>
+                        </div>
+                        <div class="card-brief">世界银行能源部门提供的发展中国家储能项目数据，包含技术和经济信息。</div>
+                        <div class="card-detail" id="detail-esmap">
+                            ESMAP的储能数据库专注于发展中国家的储能项目，提供案例研究和最佳实践。涵盖电网级储能、离网储能、微电网储能等多种应用场景，支持政策制定者和项目开发者的决策。
+                        </div>
+                        <div class="card-footer">
+                            <div class="card-meta">
+                                <span>📅 持续更新</span>
+                                <span>🏛️ World Bank</span>
+                            </div>
+                            <div class="card-actions">
+                                <button class="btn-detail" onclick="toggleDetail('esmap')">详情</button>
+                                <a href="https://esmap.org/energy-storage" target="_blank" class="btn-link">访问 →</a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 卡片4 -->
+                    <div class="data-card">
+                        <div class="card-header">
+                            <div class="card-icon storage">⚡</div>
+                            <div class="card-title-group">
+                                <div class="card-title">TTPLA Dataset</div>
+                                <div class="card-subtitle">输电塔与电力线图像数据</div>
+                            </div>
+                        </div>
+                        <div class="card-tags">
+                            <span class="tag">计算机视觉</span>
+                            <span class="tag">巡检</span>
+                            <span class="tag">无人机</span>
+                        </div>
+                        <div class="card-brief">包含1100张高分辨率航拍图像，标注了8987个输电塔和电力线实例，支持检测与分割任务。</div>
+                        <div class="card-detail" id="detail-ttpla">
+                            TTPLA数据集旨在解决航空图像中输电塔和电力线检测与分割的挑战。图像分辨率为3840×2160像素，提供实例分割、目标检测和语义分割的标注，为电力设施智能巡检提供基准数据。
+                        </div>
+                        <div class="card-footer">
+                            <div class="card-meta">
+                                <span>📅 2020</span>
+                                <span>🏛️ 学术研究</span>
+                            </div>
+                            <div class="card-actions">
+                                <button class="btn-detail" onclick="toggleDetail('ttpla')">详情</button>
+                                <a href="https://github.com/r3ab/ttpla_dataset" target="_blank" class="btn-link">访问 →</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 电池数据 -->
+            <div class="data-section" id="section-battery">
+                <div class="section-header">
+                    <div class="section-icon">⚡</div>
+                    <div class="section-info">
+                        <h2>电池数据集</h2>
+                        <p>锂电池循环寿命、SOC/SOH估计、电池老化等专业数据集</p>
+                    </div>
+                </div>
+                <div class="data-grid">
+                    <!-- 卡片1 -->
+                    <div class="data-card">
+                        <div class="card-header">
+                            <div class="card-icon battery">🚀</div>
+                            <div class="card-title-group">
+                                <div class="card-title">NASA Battery Dataset</div>
+                                <div class="card-subtitle">NASA锂电池循环寿命数据</div>
+                            </div>
+                        </div>
+                        <div class="card-tags">
+                            <span class="tag">锂电池</span>
+                            <span class="tag">循环寿命</span>
+                            <span class="tag">老化</span>
+                        </div>
+                        <div class="card-brief">NASA PCoE提供的锂离子电池循环寿命测试数据，是电池健康管理研究的经典数据集。</div>
+                        <div class="card-detail" id="detail-nasa">
+                            NASA的电池数据集包含多组18650锂离子电池在不同条件下的完整循环寿命测试数据。每个电池经历充电、放电和阻抗测量三种操作，直至电池容量衰减至额定容量的30%。数据支持RUL预测、SOH估计等研究。
+                        </div>
+                        <div class="card-footer">
+                            <div class="card-meta">
+                                <span>📅 2007-2014</span>
+                                <span>🏛️ NASA PCoE</span>
+                            </div>
+                            <div class="card-actions">
+                                <button class="btn-detail" onclick="toggleDetail('nasa')">详情</button>
+                                <a href="https://www.nasa.gov/content/prognostics-center-of-excellence-data-set-repository" target="_blank" class="btn-link">访问 →</a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 卡片2 -->
+                    <div class="data-card">
+                        <div class="card-header">
+                            <div class="card-icon battery">🏫</div>
+                            <div class="card-title-group">
+                                <div class="card-title">CALCE Battery Dataset</div>
+                                <div class="card-subtitle">马里兰大学电池数据</div>
+                            </div>
+                        </div>
+                        <div class="card-tags">
+                            <span class="tag">多类型电池</span>
+                            <span class="tag">老化机理</span>
+                            <span class="tag">学术</span>
+                        </div>
+                        <div class="card-brief">马里兰大学CALCE中心提供的多种类型电池测试数据，涵盖不同化学体系和老化条件。</div>
+                        <div class="card-detail" id="detail-calce">
+                            CALCE电池数据集包含多种类型的锂离子电池测试数据，包括不同的正负极材料组合、不同的充放电倍率、不同的温度条件等。数据支持电池建模、状态估计和寿命预测研究。
+                        </div>
+                        <div class="card-footer">
+                            <div class="card-meta">
+                                <span>📅 持续更新</span>
+                                <span>🏛️ U of Maryland</span>
+                            </div>
+                            <div class="card-actions">
+                                <button class="btn-detail" onclick="toggleDetail('calce')">详情</button>
+                                <a href="https://calce.umd.edu/battery-data" target="_blank" class="btn-link">访问 →</a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 卡片3 -->
+                    <div class="data-card">
+                        <div class="card-header">
+                            <div class="card-icon battery">📦</div>
+                            <div class="card-title-group">
+                                <div class="card-title">Battery Archive</div>
+                                <div class="card-subtitle">斯坦福/MIT电池数据平台</div>
+                            </div>
+                        </div>
+                        <div class="card-tags">
+                            <span class="tag">快充</span>
+                            <span class="tag">机器学习</span>
+                            <span class="tag">Nature</span>
+                        </div>
+                        <div class="card-brief">由斯坦福和MIT合作创建的电池性能数据平台，包含著名的快充循环寿命预测数据集。</div>
+                        <div class="card-detail" id="detail-archive">
+                            Battery Archive汇集了多个高质量电池数据集，其中最著名的是用于Nature论文的快充电池数据集，包含124个商用LFP/石墨电池在不同快充策略下的完整循环寿命数据。支持数据驱动的电池寿命预测研究。
+                        </div>
+                        <div class="card-footer">
+                            <div class="card-meta">
+                                <span>📅 2019-至今</span>
+                                <span>🏛️ Stanford/MIT</span>
+                            </div>
+                            <div class="card-actions">
+                                <button class="btn-detail" onclick="toggleDetail('archive')">详情</button>
+                                <a href="https://batteryarchive.org/" target="_blank" class="btn-link">访问 →</a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 卡片4 -->
+                    <div class="data-card">
+                        <div class="card-header">
+                            <div class="card-icon battery">🚙</div>
+                            <div class="card-title-group">
+                                <div class="card-title">EVBattery Dataset</div>
+                                <div class="card-subtitle">大规模电动汽车电池数据</div>
+                            </div>
+                        </div>
+                        <div class="card-tags">
+                            <span class="tag">电动汽车</span>
+                            <span class="tag">真实世界</span>
+                            <span class="tag">大规模</span>
+                        </div>
+                        <div class="card-brief">包含数百辆电动汽车多年充电记录的大规模数据集，支持电池健康和容量估计研究。</div>
+                        <div class="card-detail" id="detail-evbattery">
+                            EVBattery是首个关于真实世界电池数据的大规模公开数据集，涵盖三家制造商的电动汽车。提供电池健康估计和容量估计的标签，弥补了现有数据集规模小或仅在实验室环境中收集的不足。
+                        </div>
+                        <div class="card-footer">
+                            <div class="card-meta">
+                                <span>📅 2022</span>
+                                <span>🏛️ 学术研究</span>
+                            </div>
+                            <div class="card-actions">
+                                <button class="btn-detail" onclick="toggleDetail('evbattery')">详情</button>
+                                <a href="https://arxiv.org/abs/2201.12358" target="_blank" class="btn-link">访问 →</a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 卡片5 -->
+                    <div class="data-card">
+                        <div class="card-header">
+                            <div class="card-icon battery">🔬</div>
+                            <div class="card-title-group">
+                                <div class="card-title">Oxford Battery Degradation</div>
+                                <div class="card-subtitle">牛津大学电池老化数据</div>
+                            </div>
+                        </div>
+                        <div class="card-tags">
+                            <span class="tag">老化机理</span>
+                            <span class="tag">多工况</span>
+                            <span class="tag">EIS</span>
+                        </div>
+                        <div class="card-brief">牛津大学提供的电池长期老化测试数据，包含多种工况下的老化特性研究。</div>
+                        <div class="card-detail" id="detail-oxford">
+                            数据集包含多组Kokam袋式锂离子电池在不同温度和SOC范围下的长期老化测试数据。除了常规的充放电数据外，还包含周期性的电化学阻抗谱(EIS)测量和容量标定测试。
+                        </div>
+                        <div class="card-footer">
+                            <div class="card-meta">
+                                <span>📅 2017</span>
+                                <span>🏛️ Oxford</span>
+                            </div>
+                            <div class="card-actions">
+                                <button class="btn-detail" onclick="toggleDetail('oxford')">详情</button>
+                                <a href="https://howey.eng.ox.ac.uk/data-and-code/" target="_blank" class="btn-link">访问 →</a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 卡片6 -->
+                    <div class="data-card">
+                        <div class="card-header">
+                            <div class="card-icon battery">🇩🇪</div>
+                            <div class="card-title-group">
+                                <div class="card-title">TUM Battery Dataset</div>
+                                <div class="card-subtitle">慕尼黑工大电池数据</div>
+                            </div>
+                        </div>
+                        <div class="card-tags">
+                            <span class="tag">大容量电芯</span>
+                            <span class="tag">驾驶工况</span>
+                            <span class="tag">温度影响</span>
+                        </div>
+                        <div class="card-brief">慕尼黑工业大学发布的大容量电芯测试数据，包含真实驾驶工况和温度影响研究。</div>
+                        <div class="card-detail" id="detail-tum">
+                            TUM电池数据集包含大容量锂离子电芯在模拟真实驾驶工况下的测试数据，研究温度、充放电倍率等因素对电池性能的影响。数据格式规范，适合机器学习模型训练。
+                        </div>
+                        <div class="card-footer">
+                            <div class="card-meta">
+                                <span>📅 2020</span>
+                                <span>🏛️ TU Munich</span>
+                            </div>
+                            <div class="card-actions">
+                                <button class="btn-detail" onclick="toggleDetail('tum')">详情</button>
+                                <a href="https://mediatum.ub.tum.de/1550099" target="_blank" class="btn-link">访问 →</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 可再生能源数据 -->
+            <div class="data-section" id="section-renewable">
+                <div class="section-header">
+                    <div class="section-icon">🌱</div>
+                    <div class="section-info">
+                        <h2>可再生能源数据集</h2>
+                        <p>太阳能、风能发电预测与光伏/风机性能评估数据</p>
+                    </div>
+                </div>
+                <div class="data-grid">
+                    <!-- 卡片1 -->
+                    <div class="data-card">
+                        <div class="card-header">
+                            <div class="card-icon renewable">☀️</div>
+                            <div class="card-title-group">
+                                <div class="card-title">NREL Solar Radiation</div>
+                                <div class="card-subtitle">美国国家太阳辐射数据库</div>
+                            </div>
+                        </div>
+                        <div class="card-tags">
+                            <span class="tag">太阳辐射</span>
+                            <span class="tag">气象数据</span>
+                            <span class="tag">美国</span>
+                        </div>
+                        <div class="card-brief">NREL提供的高分辨率太阳辐射数据，覆盖美国全境，支持光伏发电模拟和评估。</div>
+                        <div class="card-detail" id="detail-nsrdb">
+                            国家太阳辐射数据库(NSRDB)提供1998年至今的半小时分辨率太阳辐射数据，包括GHI、DNI、DHI等多种辐射分量。数据覆盖美国及周边地区，是光伏项目规划和研究的重要数据来源。
+                        </div>
+                        <div class="card-footer">
+                            <div class="card-meta">
+                                <span>📅 1998-至今</span>
+                                <span>🏛️ NREL</span>
+                            </div>
+                            <div class="card-actions">
+                                <button class="btn-detail" onclick="toggleDetail('nsrdb')">详情</button>
+                                <a href="https://nsrdb.nrel.gov/" target="_blank" class="btn-link">访问 →</a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 卡片2 -->
+                    <div class="data-card">
+                        <div class="card-header">
+                            <div class="card-icon renewable">🌬️</div>
+                            <div class="card-title-group">
+                                <div class="card-title">Wind Integration National Dataset</div>
+                                <div class="card-subtitle">美国风能整合数据集</div>
+                            </div>
+                        </div>
+                        <div class="card-tags">
+                            <span class="tag">风能</span>
+                            <span class="tag">高分辨率</span>
+                            <span class="tag">预测</span>
+                        </div>
+                        <div class="card-brief">NREL的WIND Toolkit提供美国大陆2007-2014年的高时空分辨率风能数据。</div>
+                        <div class="card-detail" id="detail-wind">
+                            WIND Toolkit包含126,000个陆上和海上点位的风资源数据，时间分辨率为5分钟，空间分辨率为2km。数据包括风速、风向、温度、气压等变量，支持风电场选址和发电量评估。
+                        </div>
+                        <div class="card-footer">
+                            <div class="card-meta">
+                                <span>📅 2007-2014</span>
+                                <span>🏛️ NREL</span>
+                            </div>
+                            <div class="card-actions">
+                                <button class="btn-detail" onclick="toggleDetail('wind')">详情</button>
+                                <a href="https://www.nrel.gov/wind/data-tools.html" target="_blank" class="btn-link">访问 →</a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 卡片3 -->
+                    <div class="data-card">
+                        <div class="card-header">
+                            <div class="card-icon renewable">🌐</div>
+                            <div class="card-title-group">
+                                <div class="card-title">Open Power System Data</div>
+                                <div class="card-subtitle">欧洲电力系统开放数据</div>
+                            </div>
+                        </div>
+                        <div class="card-tags">
+                            <span class="tag">欧洲</span>
+                            <span class="tag">时间序列</span>
+                            <span class="tag">发电量</span>
+                        </div>
+                        <div class="card-brief">提供欧洲多国电力系统时间序列数据，包括负荷、可再生能源发电和电价。</div>
+                        <div class="card-detail" id="detail-opsd">
+                            Open Power System Data是一个欧洲电力系统数据的开放平台，提供小时级别的负荷、风电、光伏发电数据，覆盖德国、法国等37个国家。数据经过清洗和标准化处理，便于直接用于研究。
+                        </div>
+                        <div class="card-footer">
+                            <div class="card-meta">
+                                <span>📅 2015-至今</span>
+                                <span>🏛️ OPSD</span>
+                            </div>
+                            <div class="card-actions">
+                                <button class="btn-detail" onclick="toggleDetail('opsd')">详情</button>
+                                <a href="https://open-power-system-data.org/" target="_blank" class="btn-link">访问 →</a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 卡片4 -->
+                    <div class="data-card">
+                        <div class="card-header">
+                            <div class="card-icon renewable">📊</div>
+                            <div class="card-title-group">
+                                <div class="card-title">Kaggle Solar Power Generation</div>
+                                <div class="card-subtitle">Kaggle光伏发电数据集</div>
+                            </div>
+                        </div>
+                        <div class="card-tags">
+                            <span class="tag">光伏</span>
+                            <span class="tag">机器学习</span>
+                            <span class="tag">Kaggle</span>
+                        </div>
+                        <div class="card-brief">Kaggle平台上的光伏电站发电数据，包含气象参数与发电量的对应关系。</div>
+                        <div class="card-detail" id="detail-kaggle">
+                            数据集包含印度两个光伏电站的发电数据和气象数据，时间间隔15分钟。包括逆变器级别的发电数据和组件级别的环境参数，适合用于发电预测模型训练。
+                        </div>
+                        <div class="card-footer">
+                            <div class="card-meta">
+                                <span>📅 2020</span>
+                                <span>🏛️ Kaggle</span>
+                            </div>
+                            <div class="card-actions">
+                                <button class="btn-detail" onclick="toggleDetail('kaggle')">详情</button>
+                                <a href="https://www.kaggle.com/datasets/anikannal/solar-power-generation-data" target="_blank" class="btn-link">访问 →</a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 卡片5 -->
+                    <div class="data-card">
+                        <div class="card-header">
+                            <div class="card-icon renewable">🇪🇺</div>
+                            <div class="card-title-group">
+                                <div class="card-title">ENTSO-E Transparency</div>
+                                <div class="card-subtitle">欧洲电网透明度平台</div>
+                            </div>
+                        </div>
+                        <div class="card-tags">
+                            <span class="tag">实时数据</span>
+                            <span class="tag">API</span>
+                            <span class="tag">官方</span>
+                        </div>
+                        <div class="card-brief">欧洲电网运营商联盟官方数据平台，提供实时的发电、负荷和跨境输电数据。</div>
+                        <div class="card-detail" id="detail-entsoe">
+                            ENTSO-E透明度平台是欧洲电力市场最权威的数据来源，提供各国发电机组出力、实时负荷、日前市场电价、跨境输电容量等数据。支持REST API访问，数据更新及时。
+                        </div>
+                        <div class="card-footer">
+                            <div class="card-meta">
+                                <span>📅 实时更新</span>
+                                <span>🏛️ ENTSO-E</span>
+                            </div>
+                            <div class="card-actions">
+                                <button class="btn-detail" onclick="toggleDetail('entsoe')">详情</button>
+                                <a href="https://transparency.entsoe.eu/" target="_blank" class="btn-link">访问 →</a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 卡片6 -->
+                    <div class="data-card">
+                        <div class="card-header">
+                            <div class="card-icon renewable">🇨🇳</div>
+                            <div class="card-title-group">
+                                <div class="card-title">中国气象数据网</div>
+                                <div class="card-subtitle">国家气象信息中心</div>
+                            </div>
+                        </div>
+                        <div class="card-tags">
+                            <span class="tag">中国</span>
+                            <span class="tag">辐射数据</span>
+                            <span class="tag">官方</span>
+                        </div>
+                        <div class="card-brief">中国气象局官方数据平台，提供全国气象站点的辐射、风速等观测数据。</div>
+                        <div class="card-detail" id="detail-cma">
+                            中国气象数据网提供全国各气象站点的历史观测数据，包括太阳辐射、风速风向、温湿度等参数。部分数据免费开放，可用于中国地区的可再生能源资源评估。
+                        </div>
+                        <div class="card-footer">
+                            <div class="card-meta">
+                                <span>📅 持续更新</span>
+                                <span>🏛️ CMA</span>
+                            </div>
+                            <div class="card-actions">
+                                <button class="btn-detail" onclick="toggleDetail('cma')">详情</button>
+                                <a href="https://data.cma.cn/" target="_blank" class="btn-link">访问 →</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function showCategory(category) {
+            // 更新按钮状态
+            document.querySelectorAll('.category-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.closest('.category-btn').classList.add('active');
+            
+            // 显示对应分类
+            document.querySelectorAll('.data-section').forEach(section => section.classList.remove('active'));
+            document.getElementById('section-' + category).classList.add('active');
+        }
+        
+        function toggleDetail(id) {
+            const detail = document.getElementById('detail-' + id);
+            detail.classList.toggle('show');
+        }
+    </script>
+</body>
+</html>
+
+
+
+
+
+
+

@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>仪表盘 - 瓦特微电网数字孪生仿真平台</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="logo">
+            <div class="logo-icon">W</div>
+            <div class="logo-text">瓦特<span>微电网</span></div>
+        </div>
+        <ul class="nav-links">
+            <li><a href="/">首页</a></li>
+            <li><a href="/dashboard" class="active">仪表盘</a></li>
+            <li><a href="/visualization">3D可视化</a></li>
+            <li><a href="/storage">储能详情</a></li>
+            <li><a href="/trading">电力交易</a></li>
+            <li><a href="/agent">瓦特智能体</a></li>
+            <li><a href="/opendata">开源数据</a></li>
+        </ul>
+        <div class="status-indicator">
+            <span class="status-dot online"></span>
+            <span>系统在线</span>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <!-- 标签页导航 -->
+        <div class="tabs fade-in">
+            <button class="tab active" onclick="showTab('simulation')">🔄 仿真管理</button>
+            <button class="tab" onclick="showTab('prediction')">📊 预测分析</button>
+            <button class="tab" onclick="showTab('optimization')">⚡ 调度优化</button>
+            <button class="tab" onclick="showTab('calibration')">🎯 模型标定</button>
+        </div>
+
+        <!-- 仿真管理 -->
+        <div id="simulation-tab" class="tab-content">
+            <div class="grid-2">
+                <div class="card fade-in">
+                    <div class="card-title">🔄 新建仿真</div>
+                    <div class="input-group">
+                        <label>仿真名称</label>
+                        <input type="text" id="sim-name" value="仿真测试" placeholder="输入仿真名称">
+                    </div>
+                    <div class="grid-2">
+                        <div class="input-group">
+                            <label>仿真时长 (小时)</label>
+                            <input type="number" id="sim-duration" value="24" min="1" max="168">
+                        </div>
+                        <div class="input-group">
+                            <label>天气因子 (0-1.5)</label>
+                            <input type="number" id="sim-weather" value="1.0" min="0" max="1.5" step="0.1">
+                        </div>
+                    </div>
+                    <div class="grid-2">
+                        <div class="input-group">
+                            <label>风速 (m/s)</label>
+                            <input type="number" id="sim-wind" value="8" min="0" max="25">
+                        </div>
+                        <div class="input-group">
+                            <label>基础负荷 (kW)</label>
+                            <input type="number" id="sim-load" value="80" min="0">
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="runSimulation()">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"/></svg>
+                        开始仿真
+                    </button>
+                </div>
+
+                <div class="card fade-in" style="animation-delay: 0.1s;">
+                    <div class="card-title">📋 仿真历史</div>
+                    <div id="simulation-list" style="max-height: 280px; overflow-y: auto;">
+                        <div class="data-row">
+                            <span class="data-label">加载中...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card fade-in" style="animation-delay: 0.2s;">
+                <div class="card-title">📈 仿真结果曲线</div>
+                <div class="chart-container" style="height: 380px;">
+                    <canvas id="simulation-chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- 预测分析 -->
+        <div id="prediction-tab" class="tab-content" style="display: none;">
+            <div class="grid-3">
+                <div class="card fade-in">
+                    <div class="card-title">🏭 负荷预测</div>
+                    <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 16px;">
+                        基于历史数据和天气因素预测未来负荷变化趋势
+                    </p>
+                    <div class="input-group">
+                        <label>预测时长 (小时)</label>
+                        <input type="number" id="pred-hours" value="24" min="1" max="168">
+                    </div>
+                    <button class="btn btn-primary" onclick="predictLoad()">开始预测</button>
+                </div>
+                <div class="card fade-in" style="animation-delay: 0.1s;">
+                    <div class="card-title">☀️ 光伏预测</div>
+                    <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 16px;">
+                        根据天气预报和辐照度预测光伏发电功率
+                    </p>
+                    <button class="btn btn-primary" onclick="predictSolar()" style="margin-top: 50px;">开始预测</button>
+                </div>
+                <div class="card fade-in" style="animation-delay: 0.2s;">
+                    <div class="card-title">💨 风电预测</div>
+                    <p style="color: var(--text-secondary); font-size: 14px; margin-bottom: 16px;">
+                        基于风速预报预测风力发电功率曲线
+                    </p>
+                    <button class="btn btn-primary" onclick="predictWind()" style="margin-top: 50px;">开始预测</button>
+                </div>
+            </div>
+            <div class="card fade-in" style="animation-delay: 0.3s;">
+                <div class="card-title">📈 预测结果曲线</div>
+                <div class="chart-container" style="height: 380px;">
+                    <canvas id="prediction-chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- 调度优化 -->
+        <div id="optimization-tab" class="tab-content" style="display: none;">
+            <div class="grid-2">
+                <div class="card fade-in">
+                    <div class="card-title">⚙️ 优化参数设置</div>
+                    <div class="grid-2">
+                        <div class="input-group">
+                            <label>柴油成本 (元/kWh)</label>
+                            <input type="number" id="opt-diesel-cost" value="1.2" step="0.1">
+                        </div>
+                        <div class="input-group">
+                            <label>购电价格 (元/kWh)</label>
+                            <input type="number" id="opt-buy-price" value="0.8" step="0.1">
+                        </div>
+                        <div class="input-group">
+                            <label>售电价格 (元/kWh)</label>
+                            <input type="number" id="opt-sell-price" value="0.5" step="0.1">
+                        </div>
+                        <div class="input-group">
+                            <label>电池循环成本 (元/kWh)</label>
+                            <input type="number" id="opt-battery-cost" value="0.1" step="0.01">
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="runOptimization()">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        运行优化
+                    </button>
+                </div>
+                <div class="card fade-in" style="animation-delay: 0.1s;">
+                    <div class="card-title">📊 优化结果</div>
+                    <div class="data-panel" id="optimization-result">
+                        <div class="data-row">
+                            <span class="data-label">点击"运行优化"开始经济调度优化</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card fade-in" style="animation-delay: 0.2s;">
+                <div class="card-title">📈 调度计划</div>
+                <div class="chart-container" style="height: 380px;">
+                    <canvas id="optimization-chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- 模型标定 -->
+        <div id="calibration-tab" class="tab-content" style="display: none;">
+            <div class="grid-2">
+                <div class="card fade-in">
+                    <div class="card-title">📤 上传标定数据</div>
+                    <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 14px;">
+                        请输入实际运行数据（24小时，每小时一个值，用逗号分隔）
+                    </p>
+                    <div class="input-group">
+                        <label>☀️ 光伏功率数据 (kW)</label>
+                        <textarea id="cal-solar" rows="2" style="font-family: monospace; font-size: 13px;">0,0,0,0,0,0,5,20,45,65,80,90,95,90,80,65,45,20,5,0,0,0,0,0</textarea>
+                    </div>
+                    <div class="input-group">
+                        <label>💨 风电功率数据 (kW)</label>
+                        <textarea id="cal-wind" rows="2" style="font-family: monospace; font-size: 13px;">25,28,30,32,35,30,25,20,18,15,12,10,12,15,18,22,25,28,32,35,38,35,30,28</textarea>
+                    </div>
+                    <div class="input-group">
+                        <label>🏭 负荷功率数据 (kW)</label>
+                        <textarea id="cal-load" rows="2" style="font-family: monospace; font-size: 13px;">40,35,32,30,32,40,55,70,85,90,95,100,95,90,85,80,85,95,100,95,85,70,55,45</textarea>
+                    </div>
+                    <div style="display: flex; gap: 12px;">
+                        <button class="btn btn-primary" onclick="uploadCalibrationData()">上传数据</button>
+                        <button class="btn btn-secondary" onclick="runCalibration()">执行标定</button>
+                    </div>
+                </div>
+                <div class="card fade-in" style="animation-delay: 0.1s;">
+                    <div class="card-title">🎯 标定结果</div>
+                    <div class="data-panel" id="calibration-result">
+                        <div class="data-row">
+                            <span class="data-label">请先上传数据并执行标定</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function showTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.getElementById(tabName + '-tab').style.display = 'block';
+            event.target.classList.add('active');
+        }
+
+        let simChart, predChart, optChart;
+
+        function initCharts() {
+            const baseOpts = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { 
+                    legend: { 
+                        labels: { 
+                            color: '#666666', 
+                            font: { size: 12, family: 'Noto Sans SC' },
+                            usePointStyle: true,
+                            padding: 16
+                        } 
+                    } 
+                },
+                scales: {
+                    x: { 
+                        ticks: { color: '#999999', font: { size: 11 } }, 
+                        grid: { color: 'rgba(0,0,0,0.05)' } 
+                    },
+                    y: { 
+                        ticks: { color: '#999999', font: { size: 11 } }, 
+                        grid: { color: 'rgba(0,0,0,0.05)' } 
+                    }
+                }
+            };
+
+            simChart = new Chart(document.getElementById('simulation-chart').getContext('2d'), {
+                type: 'line', data: { labels: [], datasets: [] }, options: baseOpts
+            });
+            predChart = new Chart(document.getElementById('prediction-chart').getContext('2d'), {
+                type: 'line', data: { labels: [], datasets: [] }, options: baseOpts
+            });
+            optChart = new Chart(document.getElementById('optimization-chart').getContext('2d'), {
+                type: 'bar', data: { labels: [], datasets: [] }, options: baseOpts
+            });
+        }
+
+        async function runSimulation() {
+            const params = {
+                name: document.getElementById('sim-name').value,
+                duration_hours: parseInt(document.getElementById('sim-duration').value),
+                weather_factor: parseFloat(document.getElementById('sim-weather').value),
+                wind_speed: parseFloat(document.getElementById('sim-wind').value),
+                base_load: parseFloat(document.getElementById('sim-load').value)
+            };
+            const response = await fetch('/api/simulation/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params)
+            });
+            const result = await response.json();
+
+            const labels = result.data.map((d, i) => `${i}h`);
+            simChart.data = {
+                labels: labels,
+                datasets: [
+                    { label: '光伏', data: result.data.map(d => d.solar_power), borderColor: '#ff9500', backgroundColor: 'rgba(255,149,0,0.1)', fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2 },
+                    { label: '风电', data: result.data.map(d => d.wind_power), borderColor: '#00b578', backgroundColor: 'rgba(0,181,120,0.1)', fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2 },
+                    { label: '负荷', data: result.data.map(d => d.load_power), borderColor: '#ff6b6b', backgroundColor: 'rgba(255,107,107,0.1)', fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2 },
+                    { label: '电池', data: result.data.map(d => d.battery_power), borderColor: '#1890ff', backgroundColor: 'rgba(24,144,255,0.1)', fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2 },
+                    { label: '电网', data: result.data.map(d => d.grid_power), borderColor: '#722ed1', backgroundColor: 'rgba(114,46,209,0.1)', fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2 }
+                ]
+            };
+            simChart.update();
+            loadSimulationList();
+            alert('仿真完成！');
+        }
+
+        async function loadSimulationList() {
+            const response = await fetch('/api/simulation/list');
+            const simulations = await response.json();
+            const list = document.getElementById('simulation-list');
+            if (simulations.length === 0) {
+                list.innerHTML = '<div class="data-row"><span class="data-label">暂无仿真记录</span></div>';
+                return;
+            }
+            list.innerHTML = simulations.map(sim => `
+                <div class="data-row" style="cursor: pointer; transition: all 0.2s;" onmouseover="this.style.background='var(--bg-gray)'" onmouseout="this.style.background=''" onclick="loadSimulationData(${sim.id})">
+                    <span class="data-label">${sim.name}</span>
+                    <span class="badge ${sim.status === 'completed' ? 'badge-success' : 'badge-info'}">${sim.status === 'completed' ? '已完成' : '运行中'}</span>
+                </div>
+            `).join('');
+        }
+
+        async function loadSimulationData(simId) {
+            const response = await fetch(`/api/simulation/${simId}/data`);
+            const data = await response.json();
+            const labels = data.map((d, i) => `${i}h`);
+            simChart.data = {
+                labels: labels,
+                datasets: [
+                    { label: '光伏', data: data.map(d => d.solar_power), borderColor: '#ff9500', fill: false, tension: 0.4, pointRadius: 0, borderWidth: 2 },
+                    { label: '风电', data: data.map(d => d.wind_power), borderColor: '#00b578', fill: false, tension: 0.4, pointRadius: 0, borderWidth: 2 },
+                    { label: '负荷', data: data.map(d => d.load_power), borderColor: '#ff6b6b', fill: false, tension: 0.4, pointRadius: 0, borderWidth: 2 }
+                ]
+            };
+            simChart.update();
+        }
+
+        async function predictLoad() {
+            const hours = document.getElementById('pred-hours').value;
+            const response = await fetch(`/api/prediction/load?hours=${hours}`);
+            const result = await response.json();
+            updatePredictionChart(result.predictions, '负荷', '#ff6b6b');
+        }
+
+        async function predictSolar() {
+            const response = await fetch('/api/prediction/solar?hours=24');
+            const result = await response.json();
+            updatePredictionChart(result.predictions, '光伏', '#ff9500');
+        }
+
+        async function predictWind() {
+            const response = await fetch('/api/prediction/wind?hours=24');
+            const result = await response.json();
+            updatePredictionChart(result.predictions, '风电', '#00b578');
+        }
+
+        function updatePredictionChart(predictions, label, color) {
+            predChart.data = {
+                labels: predictions.map(p => `${p.hour}h`),
+                datasets: [
+                    { label: `${label}预测`, data: predictions.map(p => p.predicted_value), borderColor: color, backgroundColor: color + '20', fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2 },
+                    { label: '置信上界', data: predictions.map(p => p.confidence_upper), borderColor: color + '60', borderDash: [5,5], fill: false, pointRadius: 0, borderWidth: 1 },
+                    { label: '置信下界', data: predictions.map(p => p.confidence_lower), borderColor: color + '60', borderDash: [5,5], fill: false, pointRadius: 0, borderWidth: 1 }
+                ]
+            };
+            predChart.update();
+        }
+
+        async function runOptimization() {
+            const response = await fetch('/api/optimization/dispatch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const result = await response.json();
+
+            document.getElementById('optimization-result').innerHTML = `
+                <div class="data-row" style="border-color: var(--green);">
+                    <span class="data-label">优化状态</span>
+                    <span class="badge ${result.success ? 'badge-success' : 'badge-danger'}">${result.success ? '✓ 优化成功' : '✗ 优化失败'}</span>
+                </div>
+                <div class="data-row" style="border-color: var(--primary);">
+                    <span class="data-label">总运营成本</span>
+                    <span class="data-value" style="color: var(--primary); font-size: 20px;">${result.total_cost} <span style="font-size: 14px;">元</span></span>
+                </div>
+                <div class="data-row">
+                    <span class="data-label">优化算法</span>
+                    <span class="data-value">经济调度优化</span>
+                </div>
+            `;
+
+            optChart.data = {
+                labels: result.dispatch_plan.map(d => `${d.hour}h`),
+                datasets: [
+                    { label: '光伏调度', data: result.dispatch_plan.map(d => d.solar_dispatch), backgroundColor: '#ff9500' },
+                    { label: '风电调度', data: result.dispatch_plan.map(d => d.wind_dispatch), backgroundColor: '#00b578' },
+                    { label: '柴油机', data: result.dispatch_plan.map(d => d.diesel_dispatch), backgroundColor: '#ff6b6b' },
+                    { label: '电网购电', data: result.dispatch_plan.map(d => d.grid_purchase), backgroundColor: '#722ed1' }
+                ]
+            };
+            optChart.options.scales.x.stacked = true;
+            optChart.options.scales.y.stacked = true;
+            optChart.update();
+        }
+
+        async function uploadCalibrationData() {
+            const solarData = document.getElementById('cal-solar').value.split(',').map(Number);
+            const windData = document.getElementById('cal-wind').value.split(',').map(Number);
+            const loadData = document.getElementById('cal-load').value.split(',').map(Number);
+
+            const response = await fetch('/api/calibration/upload', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ solar_power: solarData, wind_power: windData, load_power: loadData })
+            });
+            const result = await response.json();
+            alert(result.message);
+        }
+
+        async function runCalibration() {
+            const response = await fetch('/api/calibration/run', { method: 'POST' });
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                const params = result.calibrated_params;
+                document.getElementById('calibration-result').innerHTML = `
+                    <div class="data-row" style="border-color: var(--solar);"><span class="data-label">☀️ 标定光伏容量</span><span class="data-value" style="color: var(--solar);">${params.solar_capacity.toFixed(1)} kW</span></div>
+                    <div class="data-row" style="border-color: var(--wind);"><span class="data-label">💨 标定风电容量</span><span class="data-value" style="color: var(--wind);">${params.wind_capacity.toFixed(1)} kW</span></div>
+                    <div class="data-row" style="border-color: var(--load);"><span class="data-label">🏭 标定基础负荷</span><span class="data-value" style="color: var(--load);">${params.base_load.toFixed(1)} kW</span></div>
+                    <div class="data-row" style="border-color: var(--green);"><span class="data-label">状态</span><span class="badge badge-success">✓ 标定完成</span></div>
+                `;
+            } else {
+                alert(result.message);
+            }
+        }
+
+        initCharts();
+        loadSimulationList();
+    </script>
+</body>
+</html>

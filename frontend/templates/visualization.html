@@ -1,0 +1,2102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D可视化 - 瓦特微电网数字孪生仿真平台</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root { 
+            --primary: #ff6b00; 
+            --primary-light: #ff8533;
+            --blue: #0066cc; 
+            --green: #00a854; 
+            --solar: #ff9500; 
+            --wind: #00b578; 
+            --battery: #1890ff; 
+            --load: #ff6b6b; 
+            --grid: #722ed1;
+            --gold: #c9a86c;
+            --gold-light: #e8d5a3;
+            --bg-dark: #1a1a2e;
+            --bg-nav: #0f0f1a;
+        }
+        body { font-family: 'Noto Sans SC', 'Microsoft YaHei', sans-serif; background: #0a0a12; overflow: hidden; }
+        
+        /* 场景切换TAB - 移到内容区域 */
+        .scene-selector {
+            position: fixed;
+            top: 84px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 99;
+            display: flex;
+            gap: 3px;
+            background: linear-gradient(145deg, rgba(26, 26, 46, 0.95), rgba(18, 18, 31, 0.98));
+            backdrop-filter: blur(20px);
+            padding: 8px 10px;
+            border-radius: 16px;
+            border: 1px solid rgba(201, 168, 108, 0.15);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+        .scene-tab { 
+            padding: 11px 24px; 
+            border: none; 
+            border-radius: 12px; 
+            background: transparent; 
+            color: rgba(255,255,255,0.5); 
+            font-size: 13px; 
+            font-weight: 500; 
+            cursor: pointer; 
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            letter-spacing: 0.3px;
+        }
+        .scene-tab::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(201, 168, 108, 0.2), rgba(201, 168, 108, 0.05));
+            opacity: 0;
+            transition: opacity 0.3s;
+            border-radius: 12px;
+        }
+        .scene-tab:hover { 
+            color: rgba(255,255,255,0.9);
+        }
+        .scene-tab:hover::before {
+            opacity: 1;
+        }
+        .scene-tab.active { 
+            background: linear-gradient(135deg, var(--gold) 0%, #b8956a 100%);
+            color: #1a1a2e;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(201, 168, 108, 0.35);
+        }
+        .scene-tab.active::before {
+            display: none;
+        }
+        
+        #canvas-container { position: fixed; top: 68px; left: 0; right: 0; bottom: 0; background: linear-gradient(180deg, #0a0a12 0%, #0f0f1a 100%); }
+        
+        /* 标签样式 - 高级玻璃态 */
+        .label-container { position: fixed; top: 68px; left: 0; right: 0; bottom: 0; pointer-events: none; overflow: hidden; z-index: 50; }
+        .object-label { 
+            position: absolute; 
+            background: rgba(26, 26, 46, 0.9); 
+            backdrop-filter: blur(10px);
+            padding: 6px 12px; 
+            border-radius: 8px; 
+            font-size: 11px; 
+            font-weight: 500; 
+            color: rgba(255,255,255,0.9); 
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3); 
+            white-space: nowrap; 
+            transform: translate(-50%, -100%); 
+            border: 1px solid rgba(201, 168, 108, 0.2);
+            border-left: 3px solid var(--gold); 
+        }
+        .object-label::after { content: ''; position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%); border: 8px solid transparent; border-top-color: rgba(26, 26, 46, 0.9); }
+        .object-label.solar { border-left-color: var(--solar); }
+        .object-label.wind { border-left-color: var(--wind); }
+        .object-label.battery { border-left-color: var(--battery); }
+        .object-label.building { border-left-color: #78909c; }
+        .object-label.ev { border-left-color: var(--green); }
+        .object-label.c3 { border-left-color: var(--gold); }
+        
+        /* 详情弹窗 - 深色高级风格 */
+        .tooltip { 
+            position: fixed; 
+            background: linear-gradient(145deg, rgba(26, 26, 46, 0.95), rgba(15, 15, 26, 0.98));
+            backdrop-filter: blur(20px);
+            border-radius: 16px; 
+            padding: 18px; 
+            min-width: 280px; 
+            box-shadow: 0 12px 40px rgba(0,0,0,0.5); 
+            z-index: 200; 
+            display: none; 
+            border: 1px solid rgba(201, 168, 108, 0.15);
+        }
+        .tooltip.show { display: block; animation: fadeIn 0.25s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .tooltip-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+        .tooltip-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; background: rgba(201, 168, 108, 0.1); }
+        .tooltip-title { font-size: 16px; font-weight: 600; color: #fff; }
+        .tooltip-subtitle { font-size: 11px; color: rgba(255,255,255,0.5); }
+        .tooltip-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 12px; }
+        .tooltip-row span:first-child { color: rgba(255,255,255,0.6); }
+        .tooltip-row span:last-child { font-weight: 600; color: #fff; }
+        .tooltip-row.highlight span:last-child { color: var(--gold); }
+        .tooltip-progress { height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; margin-top: 10px; overflow: hidden; }
+        .tooltip-progress-fill { height: 100%; border-radius: 3px; }
+        
+        /* 面板 - 深色玻璃态 */
+        .left-panel, .right-panel { position: fixed; top: 152px; width: 290px; max-height: calc(100vh - 168px); overflow-y: auto; z-index: 100; }
+        .left-panel { left: 16px; }
+        .right-panel { right: 16px; }
+        .left-panel::-webkit-scrollbar, .right-panel::-webkit-scrollbar { width: 4px; }
+        .left-panel::-webkit-scrollbar-thumb, .right-panel::-webkit-scrollbar-thumb { background: rgba(201, 168, 108, 0.3); border-radius: 2px; }
+        
+        .info-card { 
+            background: linear-gradient(145deg, rgba(26, 26, 46, 0.85), rgba(15, 15, 26, 0.9));
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(201, 168, 108, 0.1); 
+            border-radius: 16px; 
+            padding: 16px; 
+            margin-bottom: 12px; 
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        .card-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+        .card-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+        .card-icon.solar { background: rgba(255,149,0,0.15); }
+        .card-icon.wind { background: rgba(0,181,120,0.15); }
+        .card-icon.battery { background: rgba(24,144,255,0.15); }
+        .card-title { font-size: 14px; font-weight: 600; color: #fff; }
+        .card-subtitle { font-size: 10px; color: rgba(255,255,255,0.5); }
+        .data-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 12px; color: rgba(255,255,255,0.7); }
+        .data-item:last-child { border-bottom: none; }
+        .data-value { font-family: 'SF Mono', monospace; font-weight: 600; }
+        .data-value.solar { color: var(--solar); }
+        .data-value.wind { color: var(--wind); }
+        .data-value.battery { color: var(--battery); }
+        .data-value.load { color: var(--load); }
+        .data-value.grid { color: var(--grid); }
+        .progress-bar { height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; margin-top: 8px; }
+        .progress-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--battery), #4dabff); }
+        .building-list { max-height: 180px; overflow-y: auto; }
+        .building-item { display: flex; justify-content: space-between; padding: 6px 0; font-size: 11px; border-bottom: 1px solid rgba(255,255,255,0.04); color: rgba(255,255,255,0.7); }
+        .device-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+        .device-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 10px; font-size: 10px; color: rgba(255,255,255,0.8); }
+        .device-icon { font-size: 22px; margin-bottom: 6px; }
+        .device-name { font-weight: 600; margin-bottom: 3px; color: #fff; }
+        .ev-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+        .ev-pile { background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px; text-align: center; font-size: 10px; border: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.7); }
+        .ev-pile.active { border-color: var(--green); background: rgba(0,168,84,0.1); }
+        .ev-pile.v2g { border-color: var(--gold); background: rgba(201, 168, 108,0.1); }
+        
+        /* 底部状态栏 - 高级玻璃态 */
+        .bottom-bar { 
+            position: fixed; 
+            bottom: 16px; 
+            left: 50%; 
+            transform: translateX(-50%); 
+            background: linear-gradient(145deg, rgba(26, 26, 46, 0.9), rgba(15, 15, 26, 0.95));
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(201, 168, 108, 0.12); 
+            border-radius: 16px; 
+            padding: 14px 28px; 
+            display: flex; 
+            gap: 32px; 
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4); 
+            z-index: 100; 
+        }
+        .bottom-stat { text-align: center; }
+        .bottom-stat-value { font-family: 'SF Mono', monospace; font-size: 18px; font-weight: 700; color: #fff; }
+        .bottom-stat-label { font-size: 10px; color: rgba(255,255,255,0.5); margin-top: 2px; }
+        .scene-content { display: none; }
+        .scene-content.active { display: block; }
+        .chart-wrap { height: 90px; margin-top: 10px; background: rgba(255,255,255,0.02); border-radius: 10px; padding: 8px; }
+        .c3-device-list { max-height: 160px; overflow-y: auto; }
+        .c3-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 11px; color: rgba(255,255,255,0.8); }
+        .c3-item-name { font-weight: 600; color: #fff; }
+        .c3-item-battery { display: flex; align-items: center; gap: 6px; }
+        .c3-mini-bar { width: 45px; height: 5px; background: rgba(255,255,255,0.1); border-radius: 3px; }
+        .c3-mini-fill { height: 100%; border-radius: 3px; }
+        .status-badge { padding: 3px 10px; border-radius: 12px; font-size: 10px; font-weight: 500; }
+        .status-badge.online { background: rgba(82,196,26,0.15); color: #52c41a; }
+        .status-badge.charging { background: rgba(24,144,255,0.15); color: #1890ff; }
+        .status-badge.warning { background: rgba(250,173,20,0.15); color: #faad14; }
+        
+        /* 高亮金色状态 */
+        .status-badge.premium { background: rgba(201, 168, 108, 0.15); color: var(--gold); }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">
+            <div class="logo-icon">W</div>
+            <div class="logo-text">瓦特<span>微电网</span></div>
+        </div>
+        <ul class="nav-links">
+            <li><a href="/">首页</a></li>
+            <li><a href="/dashboard">仪表盘</a></li>
+            <li><a href="/visualization" class="active">3D可视化</a></li>
+            <li><a href="/storage">储能详情</a></li>
+            <li><a href="/trading">电力交易</a></li>
+            <li><a href="/agent">瓦特智能体</a></li>
+            <li><a href="/opendata">开源数据</a></li>
+        </ul>
+        <div class="status-indicator">
+            <span class="status-dot online"></span>
+            <span>系统在线</span>
+        </div>
+    </nav>
+    
+    <!-- 场景切换器 - 独立浮动 -->
+    <div class="scene-selector">
+        <button class="scene-tab active" onclick="switchScene('microgrid')">🏭 工商业微电网</button>
+        <button class="scene-tab" onclick="switchScene('ev')">🚗 V2G光储充</button>
+        <button class="scene-tab" onclick="switchScene('c3')">📱 3C产品监控</button>
+    </div>
+    
+    <div id="canvas-container"></div>
+    <div class="label-container" id="label-container"></div>
+    <div class="tooltip" id="tooltip"></div>
+    
+    <!-- 微电网面板 -->
+    <div class="scene-content active" id="scene-microgrid">
+        <div class="left-panel">
+            <div class="info-card">
+                <div class="card-header"><div class="card-icon solar">☀️</div><div><div class="card-title">分布式光伏</div><div class="card-subtitle">500kWp</div></div></div>
+                <div class="data-item"><span>实时功率</span><span class="data-value solar" id="pv-power">0 kW</span></div>
+                <div class="data-item"><span>今日发电</span><span class="data-value solar">0 kWh</span></div>
+            </div>
+            <div class="info-card">
+                <div class="card-header"><div class="card-icon wind">💨</div><div><div class="card-title">风力发电</div><div class="card-subtitle">150kW x3</div></div></div>
+                <div class="data-item"><span>实时功率</span><span class="data-value wind" id="wind-power">0 kW</span></div>
+            </div>
+            <div class="info-card">
+                <div class="card-header"><div class="card-icon" style="background:rgba(120,144,156,0.1)">🏗️</div><div><div class="card-title">园区建筑</div><div class="card-subtitle">12栋</div></div></div>
+                <div class="building-list">
+                    <div class="building-item"><span>A1 生产车间</span><span class="data-value load">85kW</span></div>
+                    <div class="building-item"><span>A2 生产车间</span><span class="data-value load">92kW</span></div>
+                    <div class="building-item"><span>B1 仓储中心</span><span class="data-value load">25kW</span></div>
+                    <div class="building-item"><span>B2 物流中心</span><span class="data-value load">35kW</span></div>
+                    <div class="building-item"><span>C1 研发大楼</span><span class="data-value load">45kW</span></div>
+                    <div class="building-item"><span>C2 办公大楼</span><span class="data-value load">38kW</span></div>
+                    <div class="building-item"><span>D1 员工宿舍</span><span class="data-value load">28kW</span></div>
+                    <div class="building-item"><span>D2 食堂</span><span class="data-value load">42kW</span></div>
+                    <div class="building-item"><span>E1 配电房</span><span class="data-value load">5kW</span></div>
+                    <div class="building-item"><span>E2 水泵房</span><span class="data-value load">15kW</span></div>
+                    <div class="building-item"><span>F1 门卫室</span><span class="data-value load">2kW</span></div>
+                    <div class="building-item"><span>F2 停车场</span><span class="data-value load">8kW</span></div>
+                </div>
+            </div>
+        </div>
+        <div class="right-panel">
+            <div class="info-card">
+                <div class="card-header"><div class="card-icon battery">🔋</div><div><div class="card-title">储能电站</div><div class="card-subtitle">1MWh/500kW</div></div></div>
+                <div class="data-item"><span>状态</span><span class="status-badge charging" id="batt-status">充电中</span></div>
+                <div class="data-item"><span>功率</span><span class="data-value battery" id="batt-power">0 kW</span></div>
+                <div class="data-item"><span>SOC</span><span class="data-value battery" id="batt-soc">50%</span></div>
+                <div class="progress-bar"><div class="progress-fill" id="batt-bar" style="width:50%"></div></div>
+            </div>
+            <div class="info-card">
+                <div class="card-header"><div class="card-icon" style="background:rgba(114,46,209,0.1)">⚡</div><div><div class="card-title">电网交互</div></div></div>
+                <div class="data-item"><span>交换功率</span><span class="data-value grid" id="grid-power">0 kW</span></div>
+                <div class="data-item"><span>当前电价</span><span class="data-value">0.68 元</span></div>
+            </div>
+            <div class="info-card">
+                <div class="card-header"><div class="card-icon" style="background:rgba(255,107,107,0.1)">📊</div><div><div class="card-title">总负荷</div></div></div>
+                <div class="data-item"><span>当前</span><span class="data-value load" id="load-power">0 kW</span></div>
+                <div class="chart-wrap"><canvas id="power-chart"></canvas></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- EV面板 -->
+    <div class="scene-content" id="scene-ev">
+        <div class="left-panel">
+            <div class="info-card">
+                <div class="card-header"><div class="card-icon" style="background:rgba(0,168,84,0.1)">🚗</div><div><div class="card-title">V2G光储充站</div></div></div>
+                <div class="data-item"><span>充电桩</span><span class="data-value">16个</span></div>
+                <div class="data-item"><span>V2G桩</span><span class="data-value" style="color:var(--primary)">4个</span></div>
+                <div class="data-item"><span>在充车辆</span><span class="data-value" style="color:var(--green)">6辆</span></div>
+                <div class="data-item"><span>V2G放电</span><span class="data-value" style="color:var(--primary)">2辆</span></div>
+            </div>
+            <div class="info-card">
+                <div class="card-header"><div class="card-icon solar">☀️</div><div><div class="card-title">光伏车棚</div><div class="card-subtitle">200kWp</div></div></div>
+                <div class="data-item"><span>发电功率</span><span class="data-value solar">85.6 kW</span></div>
+            </div>
+            <div class="info-card">
+                <div class="card-header"><div class="card-icon battery">🔋</div><div><div class="card-title">站内储能</div><div class="card-subtitle">500kWh</div></div></div>
+                <div class="data-item"><span>SOC</span><span class="data-value battery">72%</span></div>
+                <div class="progress-bar"><div class="progress-fill" style="width:72%"></div></div>
+            </div>
+        </div>
+        <div class="right-panel">
+            <div class="info-card">
+                <div class="card-header"><div class="card-icon" style="background:rgba(0,168,84,0.1)">⚡</div><div><div class="card-title">充电桩状态</div></div></div>
+                <div class="ev-grid">
+                    <div class="ev-pile active">🚗 45kW</div><div class="ev-pile active">🚗 60kW</div>
+                    <div class="ev-pile v2g">🔌 -30kW</div><div class="ev-pile active">🚗 120kW</div>
+                    <div class="ev-pile">🅿️ 空闲</div><div class="ev-pile active">🚗 90kW</div>
+                    <div class="ev-pile v2g">🔌 -25kW</div><div class="ev-pile">🅿️ 空闲</div>
+                    <div class="ev-pile active">🚗 75kW</div><div class="ev-pile">🅿️ 空闲</div>
+                    <div class="ev-pile active">🚗 60kW</div><div class="ev-pile">🅿️ 空闲</div>
+                    <div class="ev-pile">🅿️ 空闲</div><div class="ev-pile">🅿️ 空闲</div>
+                    <div class="ev-pile">🅿️ 空闲</div><div class="ev-pile">🅿️ 空闲</div>
+                </div>
+            </div>
+            <div class="info-card">
+                <div class="card-header"><div class="card-icon" style="background:rgba(255,107,0,0.1)">💰</div><div><div class="card-title">运营统计</div></div></div>
+                <div class="data-item"><span>今日充电量</span><span class="data-value" style="color:var(--green)">1,850 kWh</span></div>
+                <div class="data-item"><span>V2G放电量</span><span class="data-value" style="color:var(--primary)">320 kWh</span></div>
+                <div class="data-item"><span>今日收入</span><span class="data-value" style="color:var(--green)">¥2,450</span></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 3C面板 -->
+    <div class="scene-content" id="scene-c3">
+        <div class="left-panel">
+            <div class="info-card">
+                <div class="card-header"><div class="card-icon" style="background:rgba(0,102,204,0.1)">📱</div><div><div class="card-title">设备监控</div><div class="card-subtitle">24台设备</div></div></div>
+                <div class="data-item"><span>在线</span><span class="data-value" style="color:var(--green)">22台</span></div>
+                <div class="data-item"><span>充电中</span><span class="data-value battery">8台</span></div>
+                <div class="data-item"><span>低电量</span><span class="data-value" style="color:#ff4d4f">3台</span></div>
+            </div>
+            <div class="info-card">
+                <div class="card-header"><div class="card-icon" style="background:rgba(82,196,26,0.1)">📊</div><div><div class="card-title">设备分布</div></div></div>
+                <div class="device-grid">
+                    <div class="device-card"><div class="device-icon">📱</div><div class="device-name">手机</div><div>8台</div></div>
+                    <div class="device-card"><div class="device-icon">📟</div><div class="device-name">平板</div><div>6台</div></div>
+                    <div class="device-card"><div class="device-icon">💻</div><div class="device-name">笔记本</div><div>5台</div></div>
+                    <div class="device-card"><div class="device-icon">⌚</div><div class="device-name">手表</div><div>5台</div></div>
+                </div>
+            </div>
+        </div>
+        <div class="right-panel">
+            <div class="info-card">
+                <div class="card-header"><div class="card-icon" style="background:rgba(0,102,204,0.1)">📱</div><div><div class="card-title">手机状态</div></div></div>
+                <div class="c3-device-list" id="phone-list"></div>
+            </div>
+            <div class="info-card">
+                <div class="card-header"><div class="card-icon" style="background:rgba(114,46,209,0.1)">📟</div><div><div class="card-title">平板状态</div></div></div>
+                <div class="c3-device-list" id="tablet-list"></div>
+            </div>
+            <div class="info-card">
+                <div class="card-header"><div class="card-icon" style="background:rgba(24,144,255,0.1)">💻</div><div><div class="card-title">笔记本状态</div></div></div>
+                <div class="c3-device-list" id="laptop-list"></div>
+            </div>
+            <div class="info-card">
+                <div class="card-header"><div class="card-icon" style="background:rgba(250,140,22,0.1)">⌚</div><div><div class="card-title">手表状态</div></div></div>
+                <div class="c3-device-list" id="watch-list"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="bottom-bar">
+        <div class="bottom-stat"><div class="bottom-stat-value" style="color:var(--solar)" id="stat-solar">0</div><div class="bottom-stat-label">光伏 kW</div></div>
+        <div class="bottom-stat"><div class="bottom-stat-value" style="color:var(--wind)" id="stat-wind">0</div><div class="bottom-stat-label">风电 kW</div></div>
+        <div class="bottom-stat"><div class="bottom-stat-value" style="color:var(--battery)" id="stat-soc">50</div><div class="bottom-stat-label">储能 %</div></div>
+        <div class="bottom-stat"><div class="bottom-stat-value" style="color:var(--load)" id="stat-load">0</div><div class="bottom-stat-label">负荷 kW</div></div>
+        <div class="bottom-stat"><div class="bottom-stat-value" style="color:var(--grid)" id="stat-grid">0</div><div class="bottom-stat-label">电网 kW</div></div>
+    </div>
+
+    <script>
+        let scene, camera, renderer, controls, windBlades = [], sceneObjects = [], currentScene = 'microgrid';
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let hoveredObject = null;
+        
+        // 对象数据
+        const objectData = {
+            // 微电网
+            'A1生产车间': { type: 'building', icon: '🏭', power: 85, area: 1200, floors: 2, workers: 120, desc: '主要生产车间，配备自动化生产线' },
+            'A2生产车间': { type: 'building', icon: '🏭', power: 92, area: 1100, floors: 2, workers: 100, desc: '辅助生产车间，精密加工区' },
+            'B1仓储中心': { type: 'building', icon: '📦', power: 25, area: 2000, floors: 1, capacity: '5000㎡', desc: '原材料及成品仓储区' },
+            'B2物流中心': { type: 'building', icon: '🚛', power: 35, area: 1500, floors: 1, docks: 8, desc: '物流分拨中心，8个装卸口' },
+            'C1研发大楼': { type: 'building', icon: '🔬', power: 45, area: 800, floors: 5, labs: 12, desc: '研发中心，含12个实验室' },
+            'C2办公大楼': { type: 'building', icon: '🏢', power: 38, area: 600, floors: 4, offices: 50, desc: '行政办公区域' },
+            'D1员工宿舍': { type: 'building', icon: '🏠', power: 28, area: 1000, floors: 6, rooms: 120, desc: '员工住宿区' },
+            'D2食堂': { type: 'building', icon: '🍽️', power: 42, area: 500, floors: 2, seats: 500, desc: '员工餐厅，可容纳500人' },
+            'E1配电房': { type: 'building', icon: '⚡', power: 5, voltage: '10kV', capacity: '2000kVA', desc: '园区配电中心' },
+            'E2水泵房': { type: 'building', icon: '💧', power: 15, pumps: 4, flow: '200m³/h', desc: '供水泵站' },
+            'F1门卫室': { type: 'building', icon: '🚧', power: 2, guards: 4, desc: '园区主入口安保' },
+            'F2停车场': { type: 'building', icon: '🅿️', power: 8, spots: 200, evSpots: 20, desc: '员工停车场，含20个充电位' },
+            '光伏阵列A': { type: 'solar', icon: '☀️', capacity: 200, todayGen: 860, efficiency: 18.5, panels: 500, desc: 'A区屋顶光伏' },
+            '光伏阵列B': { type: 'solar', icon: '☀️', capacity: 200, todayGen: 820, efficiency: 18.2, panels: 500, desc: 'B区屋顶光伏' },
+            '地面光伏': { type: 'solar', icon: '☀️', capacity: 100, todayGen: 420, efficiency: 19.0, panels: 250, desc: '地面集中式光伏' },
+            '风机1': { type: 'wind', icon: '💨', capacity: 50, todayGen: 280, windSpeed: 5.2, rpm: 15, desc: '1号风力发电机' },
+            '风机2': { type: 'wind', icon: '💨', capacity: 50, todayGen: 265, windSpeed: 4.8, rpm: 14, desc: '2号风力发电机' },
+            '风机3': { type: 'wind', icon: '💨', capacity: 50, todayGen: 290, windSpeed: 5.5, rpm: 16, desc: '3号风力发电机' },
+            '储能电站': { type: 'battery', icon: '🔋', capacity: 1000, power: 500, soc: 65, cycles: 1250, desc: '磷酸铁锂储能系统' },
+            '变电站': { type: 'grid', icon: '⚡', voltage: '10kV', capacity: 2000, desc: '园区总变电站' },
+            '河流': { type: 'nature', icon: '🌊', length: 500, width: 15, desc: '园区景观河流' },
+            '小桥': { type: 'nature', icon: '🌉', length: 15, material: '木质', desc: '景观步行桥' },
+            // EV场景
+            '光伏车棚A': { type: 'solar', icon: '☀️', capacity: 50, spots: 20, desc: 'A区光伏车棚' },
+            '光伏车棚B': { type: 'solar', icon: '☀️', capacity: 50, spots: 20, desc: 'B区光伏车棚' },
+            '光伏车棚C': { type: 'solar', icon: '☀️', capacity: 50, spots: 20, desc: 'C区光伏车棚' },
+            '光伏车棚D': { type: 'solar', icon: '☀️', capacity: 50, spots: 20, desc: 'D区光伏车棚' },
+            '储能柜': { type: 'battery', icon: '🔋', capacity: 500, power: 250, soc: 72, desc: '站内储能系统' },
+            '服务中心': { type: 'building', icon: '🏪', area: 150, services: '休息、便利店', desc: '充电站服务中心' },
+            'V2G标识A': { type: 'ev', icon: '🔌', v2gPiles: 2, power: '60kW', desc: 'A区V2G充电区' },
+            'V2G标识B': { type: 'ev', icon: '🔌', v2gPiles: 2, power: '60kW', desc: 'B区V2G充电区' },
+            // 3C场景
+            '手机展示区': { type: 'c3', icon: '📱', devices: 8, charging: 2, desc: '华为手机旗舰展示区，展示Mate/P系列' },
+            '平板展示区': { type: 'c3', icon: '📟', devices: 6, charging: 2, desc: 'MatePad系列平板体验区' },
+            '笔记本展示区': { type: 'c3', icon: '💻', devices: 5, charging: 1, desc: 'MateBook系列笔记本展示' },
+            '智能穿戴区': { type: 'c3', icon: '⌚', devices: 5, charging: 1, desc: 'WATCH/FreeBuds系列穿戴设备' },
+            '智能家居区': { type: 'c3', icon: '🏠', devices: 4, products: '音箱/台灯/路由器', desc: '全屋智能生态展示区' },
+            '配件展示墙': { type: 'c3', icon: '🎧', items: 24, categories: '耳机/充电器/保护壳', desc: '原装配件展示销售区' },
+            '体验休息区': { type: 'c3', icon: '🛋️', seats: 4, desc: '顾客休息等候区域' },
+            '服务台': { type: 'c3', icon: '💁', services: '咨询/售后/维修', desc: '客户服务中心' },
+            '品牌展示屏': { type: 'c3', icon: '🖥️', size: '98寸', resolution: '4K', desc: '品牌宣传与产品展示大屏' }
+        };
+        
+        // 3C设备数据
+        const c3Devices = {
+            phones: [
+                { name: 'iPhone 15 Pro', battery: 85, health: 98, status: '使用中' },
+                { name: 'iPhone 14', battery: 45, health: 95, status: '充电中' },
+                { name: 'Huawei Mate60', battery: 72, health: 99, status: '待机' },
+                { name: 'Samsung S24', battery: 18, health: 92, status: '低电量' },
+                { name: 'Xiaomi 14', battery: 95, health: 100, status: '使用中' },
+                { name: 'OPPO Find X7', battery: 60, health: 96, status: '待机' },
+                { name: 'vivo X100', battery: 33, health: 94, status: '充电中' },
+                { name: 'OnePlus 12', battery: 88, health: 97, status: '使用中' }
+            ],
+            tablets: [
+                { name: 'iPad Pro', battery: 78, health: 96, status: '使用中' },
+                { name: 'iPad Air', battery: 52, health: 98, status: '充电中' },
+                { name: 'MatePad Pro', battery: 91, health: 99, status: '待机' },
+                { name: 'Galaxy Tab S9', battery: 15, health: 90, status: '低电量' },
+                { name: 'Xiaomi Pad 6', battery: 68, health: 97, status: '使用中' },
+                { name: 'Surface Pro', battery: 82, health: 95, status: '待机' }
+            ],
+            laptops: [
+                { name: 'MacBook Pro', battery: 72, health: 94, status: '使用中' },
+                { name: 'ThinkPad X1', battery: 88, health: 96, status: '充电中' },
+                { name: 'Dell XPS 15', battery: 45, health: 92, status: '使用中' },
+                { name: 'HP Spectre', battery: 12, health: 88, status: '低电量' },
+                { name: 'ASUS ROG', battery: 95, health: 99, status: '待机' }
+            ],
+            watches: [
+                { name: 'Apple Watch', battery: 65, health: 100, status: '佩戴中' },
+                { name: 'Galaxy Watch', battery: 42, health: 98, status: '充电中' },
+                { name: 'Huawei GT4', battery: 88, health: 99, status: '佩戴中' },
+                { name: 'Xiaomi Watch', battery: 25, health: 95, status: '待机' },
+                { name: 'Garmin Fenix', battery: 92, health: 97, status: '佩戴中' }
+            ]
+        };
+        
+        function init3D() {
+            const container = document.getElementById('canvas-container');
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xe8f4fc);
+            scene.fog = new THREE.Fog(0xe8f4fc, 150, 500);
+            
+            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(100, 70, 120);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight - 60);
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+            
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.maxPolarAngle = Math.PI / 2.2;
+            
+            setupLights();
+            createMicrogridScene();
+            animate();
+            
+            // 鼠标事件
+            renderer.domElement.addEventListener('mousemove', onMouseMove);
+            renderer.domElement.addEventListener('click', onMouseClick);
+            window.addEventListener('resize', onResize);
+        }
+        
+        function setupLights() {
+            scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+            const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+            sun.position.set(80, 120, 60);
+            sun.castShadow = true;
+            sun.shadow.mapSize.width = 2048;
+            sun.shadow.mapSize.height = 2048;
+            scene.add(sun);
+            scene.add(new THREE.HemisphereLight(0x87ceeb, 0x7cb342, 0.4));
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            windBlades.forEach(b => { if(b) b.rotation.z += 0.015; });
+            updateLabels();
+            renderer.render(scene, camera);
+        }
+        
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight - 60);
+        }
+        
+        function onMouseMove(e) {
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -((e.clientY - 60) / (window.innerHeight - 60)) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(sceneObjects, true);
+            
+            const tooltip = document.getElementById('tooltip');
+            
+            if(intersects.length > 0) {
+                let obj = intersects[0].object;
+                while(obj.parent && !obj.userData.name) obj = obj.parent;
+                
+                if(obj.userData.name && obj !== hoveredObject) {
+                    hoveredObject = obj;
+                    showTooltip(obj.userData.name, e.clientX, e.clientY);
+                    renderer.domElement.style.cursor = 'pointer';
+                }
+            } else {
+                hoveredObject = null;
+                tooltip.classList.remove('show');
+                renderer.domElement.style.cursor = 'default';
+            }
+        }
+        
+        function onMouseClick(e) {
+            if(hoveredObject && hoveredObject.userData.name) {
+                // 可以在这里添加点击后的详细页面跳转
+                console.log('Clicked:', hoveredObject.userData.name);
+            }
+        }
+        
+        function showTooltip(name, x, y) {
+            const tooltip = document.getElementById('tooltip');
+            const data = objectData[name];
+            if(!data) return;
+            
+            let content = `<div class="tooltip-header">
+                <div class="tooltip-icon" style="background:${getTypeColor(data.type)}20">${data.icon}</div>
+                <div><div class="tooltip-title">${name}</div><div class="tooltip-subtitle">${data.desc || ''}</div></div>
+            </div>`;
+            
+            if(data.type === 'building') {
+                content += `<div class="tooltip-row"><span>当前功耗</span><span style="color:var(--load)">${data.power} kW</span></div>`;
+                if(data.area) content += `<div class="tooltip-row"><span>建筑面积</span><span>${data.area} m²</span></div>`;
+                if(data.floors) content += `<div class="tooltip-row"><span>楼层数</span><span>${data.floors} 层</span></div>`;
+                if(data.workers) content += `<div class="tooltip-row"><span>工作人员</span><span>${data.workers} 人</span></div>`;
+                if(data.capacity) content += `<div class="tooltip-row"><span>容量</span><span>${data.capacity}</span></div>`;
+            } else if(data.type === 'solar') {
+                content += `<div class="tooltip-row highlight"><span>装机容量</span><span>${data.capacity} kWp</span></div>`;
+                if(data.todayGen) content += `<div class="tooltip-row"><span>今日发电</span><span style="color:var(--solar)">${data.todayGen} kWh</span></div>`;
+                if(data.efficiency) content += `<div class="tooltip-row"><span>转换效率</span><span>${data.efficiency}%</span></div>`;
+                if(data.panels) content += `<div class="tooltip-row"><span>组件数量</span><span>${data.panels} 块</span></div>`;
+            } else if(data.type === 'wind') {
+                content += `<div class="tooltip-row highlight"><span>额定功率</span><span>${data.capacity} kW</span></div>`;
+                if(data.todayGen) content += `<div class="tooltip-row"><span>今日发电</span><span style="color:var(--wind)">${data.todayGen} kWh</span></div>`;
+                if(data.windSpeed) content += `<div class="tooltip-row"><span>当前风速</span><span>${data.windSpeed} m/s</span></div>`;
+                if(data.rpm) content += `<div class="tooltip-row"><span>转速</span><span>${data.rpm} rpm</span></div>`;
+            } else if(data.type === 'battery') {
+                content += `<div class="tooltip-row highlight"><span>容量/功率</span><span>${data.capacity}kWh/${data.power}kW</span></div>`;
+                content += `<div class="tooltip-row"><span>SOC</span><span style="color:var(--battery)">${data.soc}%</span></div>`;
+                content += `<div class="tooltip-progress"><div class="tooltip-progress-fill" style="width:${data.soc}%;background:var(--battery)"></div></div>`;
+                if(data.cycles) content += `<div class="tooltip-row"><span>循环次数</span><span>${data.cycles} 次</span></div>`;
+            } else if(data.type === 'ev') {
+                content += `<div class="tooltip-row highlight"><span>V2G桩数</span><span>${data.v2gPiles} 个</span></div>`;
+                content += `<div class="tooltip-row"><span>单桩功率</span><span>${data.power}</span></div>`;
+            } else if(data.type === 'c3') {
+                content += `<div class="tooltip-row"><span>设备数量</span><span>${data.devices} 台</span></div>`;
+                content += `<div class="tooltip-row"><span>充电中</span><span style="color:var(--battery)">${data.charging} 台</span></div>`;
+            }
+            
+            tooltip.innerHTML = content;
+            tooltip.style.left = Math.min(x + 15, window.innerWidth - 280) + 'px';
+            tooltip.style.top = Math.min(y + 15, window.innerHeight - 200) + 'px';
+            tooltip.classList.add('show');
+        }
+        
+        function getTypeColor(type) {
+            const colors = { building: '#78909c', solar: '#ff9500', wind: '#00b578', battery: '#1890ff', grid: '#722ed1', ev: '#00a854', c3: '#0066cc', nature: '#4fc3f7' };
+            return colors[type] || '#666';
+        }
+        
+        function updateLabels() {
+            const container = document.getElementById('label-container');
+            container.innerHTML = '';
+            
+            sceneObjects.forEach(obj => {
+                if(obj.userData.name && obj.userData.labelOffset) {
+                    const pos = new THREE.Vector3();
+                    obj.getWorldPosition(pos);
+                    pos.y += obj.userData.labelOffset;
+                    
+                    const screenPos = pos.clone().project(camera);
+                    const x = (screenPos.x * 0.5 + 0.5) * window.innerWidth;
+                    const y = (1 - (screenPos.y * 0.5 + 0.5)) * (window.innerHeight - 60);
+                    
+                    if(screenPos.z < 1 && x > 0 && x < window.innerWidth && y > 0 && y < window.innerHeight - 60) {
+                        const label = document.createElement('div');
+                        label.className = 'object-label ' + (obj.userData.labelType || '');
+                        label.textContent = obj.userData.name;
+                        label.style.left = x + 'px';
+                        label.style.top = y + 'px';
+                        container.appendChild(label);
+                    }
+                }
+            });
+        }
+        
+        function switchScene(name) {
+            currentScene = name;
+            document.querySelectorAll('.scene-tab').forEach(t => t.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+            document.querySelectorAll('.scene-content').forEach(c => c.classList.remove('active'));
+            document.getElementById('scene-' + name).classList.add('active');
+            
+            while(scene.children.length > 0) scene.remove(scene.children[0]);
+            sceneObjects = [];
+            windBlades = [];
+            setupLights();
+            
+            if(name === 'microgrid') { createMicrogridScene(); camera.position.set(100, 70, 120); }
+            else if(name === 'ev') { createEVScene(); camera.position.set(70, 45, 90); }
+            else if(name === 'c3') { createC3Scene(); camera.position.set(90, 55, 100); }
+            controls.target.set(0, 0, 0);
+        }
+        
+        // 创建带标签的建筑
+        function createBuilding(x, z, w, h, d, color, name) {
+            const group = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color }));
+            body.position.y = h / 2;
+            body.castShadow = true;
+            group.add(body);
+            
+            // 窗户
+            const winMat = new THREE.MeshStandardMaterial({ color: 0x87ceeb, metalness: 0.7 });
+            const floors = Math.floor(h / 4);
+            const winsPerFloor = Math.floor(w / 5);
+            for(let f = 0; f < floors; f++) {
+                for(let wi = 0; wi < winsPerFloor; wi++) {
+                    const win = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 2), winMat);
+                    win.position.set(-w/2 + 2.5 + wi * 5, 2 + f * 4, d/2 + 0.05);
+                    group.add(win);
+                }
+            }
+            
+            group.position.set(x, 0, z);
+            group.userData = { name, labelOffset: h + 3, labelType: 'building' };
+            scene.add(group);
+            sceneObjects.push(group);
+            return group;
+        }
+        
+        function createMicrogridScene() {
+            // 地面
+            const ground = new THREE.Mesh(new THREE.PlaneGeometry(350, 350), new THREE.MeshStandardMaterial({ color: 0x7cb342 }));
+            ground.rotation.x = -Math.PI / 2;
+            ground.receiveShadow = true;
+            scene.add(ground);
+            
+            // 山丘
+            const hillMat = new THREE.MeshStandardMaterial({ color: 0x5d9e3c });
+            [[-130, -90, 2, 0.7], [140, -110, 1.5, 0.5], [-110, 110, 1.6, 0.5]].forEach(([x, z, sx, sy]) => {
+                const hill = new THREE.Mesh(new THREE.SphereGeometry(25, 12, 12, 0, Math.PI * 2, 0, Math.PI / 2), hillMat);
+                hill.position.set(x, 0, z);
+                hill.scale.set(sx, sy, 1.2);
+                scene.add(hill);
+            });
+            
+            // 河流
+            const riverShape = new THREE.Shape();
+            riverShape.moveTo(-175, 70); riverShape.bezierCurveTo(-100, 85, 0, 75, 100, 85); riverShape.lineTo(100, 100); riverShape.bezierCurveTo(0, 90, -100, 100, -175, 85);
+            const river = new THREE.Mesh(new THREE.ShapeGeometry(riverShape), new THREE.MeshStandardMaterial({ color: 0x4fc3f7, transparent: true, opacity: 0.8 }));
+            river.rotation.x = -Math.PI / 2;
+            river.position.y = 0.1;
+            river.userData = { name: '河流', labelOffset: 2, labelType: '' };
+            scene.add(river);
+            sceneObjects.push(river);
+            
+            // 桥
+            const bridge = new THREE.Mesh(new THREE.BoxGeometry(12, 1, 6), new THREE.MeshStandardMaterial({ color: 0x8d6e63 }));
+            bridge.position.set(0, 1, 85);
+            bridge.userData = { name: '小桥', labelOffset: 3, labelType: '' };
+            scene.add(bridge);
+            sceneObjects.push(bridge);
+            
+            // 道路
+            const roadMat = new THREE.MeshStandardMaterial({ color: 0x424242 });
+            const road1 = new THREE.Mesh(new THREE.PlaneGeometry(10, 180), roadMat);
+            road1.rotation.x = -Math.PI / 2; road1.position.set(0, 0.05, -10);
+            scene.add(road1);
+            const road2 = new THREE.Mesh(new THREE.PlaneGeometry(180, 8), roadMat);
+            road2.rotation.x = -Math.PI / 2; road2.position.set(0, 0.05, -10);
+            scene.add(road2);
+            
+            // 建筑物 (12栋)
+            createBuilding(-55, -35, 38, 16, 28, 0xe8e8e8, 'A1生产车间');
+            createBuilding(-55, 15, 38, 16, 28, 0xe8e8e8, 'A2生产车间');
+            createBuilding(-5, -55, 28, 10, 45, 0xf0f0f0, 'B1仓储中心');
+            createBuilding(35, -55, 28, 10, 38, 0xf0f0f0, 'B2物流中心');
+            createBuilding(55, -18, 18, 26, 18, 0xfafafa, 'C1研发大楼');
+            createBuilding(55, 18, 18, 22, 16, 0xfafafa, 'C2办公大楼');
+            createBuilding(38, 55, 24, 14, 32, 0xf5f5f5, 'D1员工宿舍');
+            createBuilding(-18, 55, 18, 9, 22, 0xfffaf0, 'D2食堂');
+            createBuilding(-75, -65, 7, 4, 7, 0xd0d0d0, 'E1配电房');
+            createBuilding(-75, -52, 5, 3, 5, 0xc0c0c0, 'E2水泵房');
+            createBuilding(-85, 0, 4, 3, 4, 0xffffff, 'F1门卫室');
+            createBuilding(75, 55, 32, 3, 22, 0x606060, 'F2停车场');
+            
+            // 光伏
+            createPVArray(-55, 17, -35, 30, 22, '光伏阵列A');
+            createPVArray(-55, 17, 15, 30, 22, '光伏阵列B');
+            createGroundPV(-95, 35, '地面光伏');
+            
+            // 风机
+            createWindTurbine(95, -45, '风机1');
+            createWindTurbine(105, -15, '风机2');
+            createWindTurbine(95, 15, '风机3');
+            
+            // 储能
+            createStorage(-45, -75, '储能电站');
+            
+            // 变电站
+            createSubstation(-65, -75, '变电站');
+            
+            // 树木
+            for(let i = 0; i < 40; i++) {
+                const x = (Math.random() - 0.5) * 300;
+                const z = (Math.random() - 0.5) * 300;
+                if(Math.abs(x) > 90 || Math.abs(z) > 70) createTree(x, z);
+            }
+        }
+        
+        function createPVArray(x, y, z, w, d, name) {
+            const group = new THREE.Group();
+            const pvMat = new THREE.MeshStandardMaterial({ color: 0x1a237e, metalness: 0.6 });
+            const rows = Math.floor(d / 3), cols = Math.floor(w / 4);
+            for(let r = 0; r < rows; r++) {
+                for(let c = 0; c < cols; c++) {
+                    const panel = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.06, 1.8), pvMat);
+                    panel.position.set(-w/2 + 2 + c * 4, 0.5, -d/2 + 1.5 + r * 3);
+                    panel.rotation.x = -0.3;
+                    group.add(panel);
+                }
+            }
+            group.position.set(x, y, z);
+            group.userData = { name, labelOffset: 3, labelType: 'solar' };
+            scene.add(group);
+            sceneObjects.push(group);
+        }
+        
+        function createGroundPV(x, z, name) {
+            const group = new THREE.Group();
+            const pvMat = new THREE.MeshStandardMaterial({ color: 0x1a237e, metalness: 0.6 });
+            for(let r = 0; r < 4; r++) {
+                for(let c = 0; c < 8; c++) {
+                    const panel = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.06, 1.8), pvMat);
+                    panel.position.set(c * 4.5, 2, r * 3);
+                    panel.rotation.x = -0.35;
+                    group.add(panel);
+                    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2, 8), new THREE.MeshStandardMaterial({ color: 0x9e9e9e }));
+                    pole.position.set(c * 4.5, 1, r * 3);
+                    group.add(pole);
+                }
+            }
+            group.position.set(x, 0, z);
+            group.userData = { name, labelOffset: 4, labelType: 'solar' };
+            scene.add(group);
+            sceneObjects.push(group);
+        }
+        
+        function createWindTurbine(x, z, name) {
+            const group = new THREE.Group();
+            const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.6, 40, 16), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+            tower.position.y = 20;
+            group.add(tower);
+            const nacelle = new THREE.Mesh(new THREE.BoxGeometry(3.5, 2.5, 5), new THREE.MeshStandardMaterial({ color: 0xf5f5f5 }));
+            nacelle.position.set(0, 41, 0);
+            group.add(nacelle);
+            const blades = new THREE.Group();
+            for(let i = 0; i < 3; i++) {
+                const blade = new THREE.Mesh(new THREE.BoxGeometry(0.7, 16, 1.8), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+                blade.position.y = 8;
+                const bg = new THREE.Group();
+                bg.add(blade);
+                bg.rotation.z = (i * Math.PI * 2) / 3;
+                blades.add(bg);
+            }
+            blades.position.set(0, 41, 3.5);
+            group.add(blades);
+            windBlades.push(blades);
+            group.position.set(x, 0, z);
+            group.userData = { name, labelOffset: 50, labelType: 'wind' };
+            scene.add(group);
+            sceneObjects.push(group);
+        }
+        
+        function createStorage(x, z, name) {
+            const group = new THREE.Group();
+            for(let i = 0; i < 3; i++) {
+                const container = new THREE.Mesh(new THREE.BoxGeometry(9, 3, 2.8), new THREE.MeshStandardMaterial({ color: 0x1565c0 }));
+                container.position.set(i * 11, 1.5, 0);
+                group.add(container);
+            }
+            const pcs = new THREE.Mesh(new THREE.BoxGeometry(3.5, 2.2, 1.8), new THREE.MeshStandardMaterial({ color: 0x37474f }));
+            pcs.position.set(33, 1.1, 0);
+            group.add(pcs);
+            group.position.set(x, 0, z);
+            group.userData = { name, labelOffset: 5, labelType: 'battery' };
+            scene.add(group);
+            sceneObjects.push(group);
+        }
+        
+        function createSubstation(x, z, name) {
+            const group = new THREE.Group();
+            const transformer = new THREE.Mesh(new THREE.BoxGeometry(4.5, 3.5, 3.5), new THREE.MeshStandardMaterial({ color: 0x78909c }));
+            transformer.position.y = 1.75;
+            group.add(transformer);
+            for(let i = 0; i < 3; i++) {
+                const insulator = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 2.5, 8), new THREE.MeshStandardMaterial({ color: 0x8d6e63 }));
+                insulator.position.set(-1.2 + i * 1.2, 4.75, 0);
+                group.add(insulator);
+            }
+            group.position.set(x, 0, z);
+            group.userData = { name, labelOffset: 7, labelType: '' };
+            scene.add(group);
+            sceneObjects.push(group);
+        }
+        
+        function createTree(x, z) {
+            const group = new THREE.Group();
+            group.add(new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.4, 3.5, 8), new THREE.MeshStandardMaterial({ color: 0x5d4037 })));
+            const leaves = new THREE.Mesh(new THREE.SphereGeometry(2.5, 8, 8), new THREE.MeshStandardMaterial({ color: 0x388e3c }));
+            leaves.position.y = 3.5;
+            group.add(leaves);
+            group.position.set(x, 1.75, z);
+            group.scale.setScalar(0.7 + Math.random() * 0.4);
+            scene.add(group);
+        }
+        
+        function createEVScene() {
+            const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), new THREE.MeshStandardMaterial({ color: 0x7cb342 }));
+            ground.rotation.x = -Math.PI / 2;
+            scene.add(ground);
+            
+            const parking = new THREE.Mesh(new THREE.PlaneGeometry(90, 55), new THREE.MeshStandardMaterial({ color: 0x424242 }));
+            parking.rotation.x = -Math.PI / 2;
+            parking.position.y = 0.05;
+            scene.add(parking);
+            
+            // 光伏车棚
+            createCarport(-28, -12, '光伏车棚A');
+            createCarport(-28, 12, '光伏车棚B');
+            createCarport(18, -12, '光伏车棚C');
+            createCarport(18, 12, '光伏车棚D');
+            
+            // 充电桩
+            const pilePos = [[-38,-18],[-30,-18],[-22,-18],[-14,-18],[-38,-6],[-30,-6],[-22,-6],[-14,-6],[10,-18],[18,-18],[26,-18],[34,-18],[10,-6],[18,-6],[26,-6],[34,-6]];
+            pilePos.forEach((p, i) => createChargingPile(p[0], p[1], i < 4 || (i >= 8 && i < 12)));
+            
+            // 电动汽车
+            [[-38,-18],[-30,-18],[-14,-18],[-38,-6],[-22,-6],[10,-18],[26,-18],[18,-6]].forEach(p => createEV(p[0] + 2, p[1] + 4.5));
+            
+            // 储能
+            const storageGroup = new THREE.Group();
+            for(let i = 0; i < 2; i++) {
+                const cab = new THREE.Mesh(new THREE.BoxGeometry(2.8, 2.2, 1.3), new THREE.MeshStandardMaterial({ color: 0x1565c0 }));
+                cab.position.set(i * 3.5, 1.1, 0);
+                storageGroup.add(cab);
+            }
+            storageGroup.position.set(52, 0, 0);
+            storageGroup.userData = { name: '储能柜', labelOffset: 4, labelType: 'battery' };
+            scene.add(storageGroup);
+            sceneObjects.push(storageGroup);
+            
+            // V2G标识
+            createV2GSign(-26, 0, 'V2G标识A');
+            createV2GSign(22, 0, 'V2G标识B');
+            
+            // 服务中心
+            createBuilding(52, -25, 14, 5, 9, 0xffffff, '服务中心');
+            
+            for(let i = 0; i < 15; i++) {
+                const x = (Math.random() - 0.5) * 180;
+                const z = (Math.random() - 0.5) * 180;
+                if(Math.abs(x) > 50 || Math.abs(z) > 32) createTree(x, z);
+            }
+        }
+        
+        function createCarport(x, z, name) {
+            const group = new THREE.Group();
+            const poleMat = new THREE.MeshStandardMaterial({ color: 0x9e9e9e });
+            [[0, 0], [0, 10], [22, 0], [22, 10]].forEach(p => {
+                const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 4.5, 8), poleMat);
+                pole.position.set(p[0] - 11, 2.25, p[1] - 5);
+                group.add(pole);
+            });
+            const frame = new THREE.Mesh(new THREE.BoxGeometry(24, 0.25, 12), new THREE.MeshStandardMaterial({ color: 0xbdbdbd }));
+            frame.position.y = 4.5;
+            group.add(frame);
+            const pvMat = new THREE.MeshStandardMaterial({ color: 0x1a237e, metalness: 0.6 });
+            for(let r = 0; r < 3; r++) {
+                for(let c = 0; c < 5; c++) {
+                    const panel = new THREE.Mesh(new THREE.BoxGeometry(4.2, 0.06, 3.2), pvMat);
+                    panel.position.set(-9 + c * 4.5, 4.7, -3.5 + r * 3.5);
+                    panel.rotation.x = -0.12;
+                    group.add(panel);
+                }
+            }
+            group.position.set(x, 0, z);
+            group.userData = { name, labelOffset: 6, labelType: 'solar' };
+            scene.add(group);
+            sceneObjects.push(group);
+        }
+        
+        function createChargingPile(x, z, isV2G) {
+            const group = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.4, 0.4), new THREE.MeshStandardMaterial({ color: isV2G ? 0xff6b00 : 0x00a854 }));
+            body.position.y = 0.7;
+            group.add(body);
+            const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.35), new THREE.MeshBasicMaterial({ color: 0x4fc3f7 }));
+            screen.position.set(0, 1.05, 0.21);
+            group.add(screen);
+            group.position.set(x, 0, z);
+            scene.add(group);
+        }
+        
+        function createEV(x, z) {
+            const group = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.BoxGeometry(3.5, 1, 1.6), new THREE.MeshStandardMaterial({ color: Math.random() > 0.5 ? 0x1976d2 : 0xf5f5f5 }));
+            body.position.y = 0.7;
+            group.add(body);
+            const roof = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.7, 1.4), new THREE.MeshStandardMaterial({ color: 0x333333 }));
+            roof.position.set(0, 1.35, 0);
+            group.add(roof);
+            group.position.set(x, 0, z);
+            group.rotation.y = Math.PI / 2;
+            scene.add(group);
+        }
+        
+        function createV2GSign(x, z, name) {
+            const group = new THREE.Group();
+            const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2.8, 8), new THREE.MeshStandardMaterial({ color: 0x9e9e9e }));
+            pole.position.y = 1.4;
+            group.add(pole);
+            const sign = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.7, 0.08), new THREE.MeshStandardMaterial({ color: 0xff6b00 }));
+            sign.position.y = 3;
+            group.add(sign);
+            group.position.set(x, 0, z);
+            group.userData = { name, labelOffset: 4.5, labelType: 'ev' };
+            scene.add(group);
+            sceneObjects.push(group);
+        }
+        
+        function createC3Scene() {
+            // ===== 宏伟旗舰店设计 - Cocoa Tea Gold 配色方案 =====
+            // 配色定义
+            const COCOA_TEA_GOLD = 0xc9a86c;      // 可可茶金
+            const WARM_WHITE = 0xfaf8f5;          // 暖白色
+            const VENETIAN_PLASTER = 0xf5f0e8;    // 威尼斯石膏色
+            const NATURAL_WOOD = 0xd4a574;        // 天然木材色
+            const DARK_WOOD = 0x8b6914;           // 深木色
+            const GLASS_TINT = 0xe8f4f8;          // 玻璃色调
+            const SOFT_GOLD = 0xe8d5a3;           // 柔和金色
+            const GREEN_WALL = 0x2d5a27;          // 绿植墙色
+            
+            // 扩大场景尺寸 - 创造宏伟空间感
+            const STORE_WIDTH = 160;
+            const STORE_DEPTH = 120;
+            const STORE_HEIGHT = 18;
+            
+            // ===== 地面 - 高光米色大理石纹理 =====
+            const floorMat = new THREE.MeshStandardMaterial({ 
+                color: 0xf8f4ef, 
+                roughness: 0.15,
+                metalness: 0.05
+            });
+            const floor = new THREE.Mesh(new THREE.PlaneGeometry(STORE_WIDTH, STORE_DEPTH), floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            scene.add(floor);
+            
+            // 大理石纹理线 - 宽间距优雅线条
+            const marbleLineMat = new THREE.MeshStandardMaterial({ color: SOFT_GOLD, metalness: 0.3 });
+            for(let i = -55; i <= 55; i += 12) {
+                const lineH = new THREE.Mesh(new THREE.PlaneGeometry(STORE_WIDTH, 0.08), marbleLineMat);
+                lineH.rotation.x = -Math.PI / 2;
+                lineH.position.set(0, 0.02, i);
+                scene.add(lineH);
+            }
+            for(let i = -75; i <= 75; i += 12) {
+                const lineV = new THREE.Mesh(new THREE.PlaneGeometry(0.08, STORE_DEPTH), marbleLineMat);
+                lineV.rotation.x = -Math.PI / 2;
+                lineV.position.set(i, 0.02, 0);
+                scene.add(lineV);
+            }
+            
+            // ===== 后墙 - 威尼斯石膏质感 + GRG艺术墙 =====
+            const venetianMat = new THREE.MeshStandardMaterial({ 
+                color: VENETIAN_PLASTER, 
+                roughness: 0.6,
+                metalness: 0.0
+            });
+            const backWall = new THREE.Mesh(new THREE.BoxGeometry(STORE_WIDTH, STORE_HEIGHT, 0.5), venetianMat);
+            backWall.position.set(0, STORE_HEIGHT/2, -STORE_DEPTH/2);
+            scene.add(backWall);
+            
+            // GRG艺术装饰板 - 波浪纹理
+            const grgMat = new THREE.MeshStandardMaterial({ color: WARM_WHITE, roughness: 0.4 });
+            for(let i = 0; i < 8; i++) {
+                const grgPanel = new THREE.Mesh(new THREE.BoxGeometry(15, 10, 0.3), grgMat);
+                grgPanel.position.set(-52.5 + i * 15, 8, -STORE_DEPTH/2 + 0.5);
+                scene.add(grgPanel);
+                // 金色边框
+                const goldFrame = new THREE.Mesh(
+                    new THREE.BoxGeometry(15.5, 0.15, 0.4), 
+                    new THREE.MeshStandardMaterial({ color: COCOA_TEA_GOLD, metalness: 0.8, roughness: 0.2 })
+                );
+                goldFrame.position.set(-52.5 + i * 15, 13.2, -STORE_DEPTH/2 + 0.5);
+                scene.add(goldFrame);
+            }
+            
+            // ===== 侧墙 - 高透明玻璃幕墙 =====
+            const glassMat = new THREE.MeshStandardMaterial({ 
+                color: GLASS_TINT, 
+                transparent: true, 
+                opacity: 0.25,
+                roughness: 0.0,
+                metalness: 0.1
+            });
+            const glassFrameMat = new THREE.MeshStandardMaterial({ color: COCOA_TEA_GOLD, metalness: 0.9, roughness: 0.1 });
+            
+            // 左侧玻璃幕墙
+            for(let i = 0; i < 6; i++) {
+                const glassPane = new THREE.Mesh(new THREE.BoxGeometry(0.15, STORE_HEIGHT - 2, 18), glassMat);
+                glassPane.position.set(-STORE_WIDTH/2, STORE_HEIGHT/2, -45 + i * 18);
+                scene.add(glassPane);
+                // 金色竖框
+                const vFrame = new THREE.Mesh(new THREE.BoxGeometry(0.3, STORE_HEIGHT, 0.8), glassFrameMat);
+                vFrame.position.set(-STORE_WIDTH/2, STORE_HEIGHT/2, -54 + i * 18);
+                scene.add(vFrame);
+            }
+            // 右侧玻璃幕墙
+            for(let i = 0; i < 6; i++) {
+                const glassPane = new THREE.Mesh(new THREE.BoxGeometry(0.15, STORE_HEIGHT - 2, 18), glassMat);
+                glassPane.position.set(STORE_WIDTH/2, STORE_HEIGHT/2, -45 + i * 18);
+                scene.add(glassPane);
+                const vFrame = new THREE.Mesh(new THREE.BoxGeometry(0.3, STORE_HEIGHT, 0.8), glassFrameMat);
+                vFrame.position.set(STORE_WIDTH/2, STORE_HEIGHT/2, -54 + i * 18);
+                scene.add(vFrame);
+            }
+            
+            // ===== 绿色植物墙 =====
+            createGreenWall(-STORE_WIDTH/2 + 1, 8, -30, 0.5, 12, 35);
+            createGreenWall(STORE_WIDTH/2 - 1, 8, 20, 0.5, 10, 25);
+            
+            // ===== 天花板 - 艺术装置 =====
+            const ceilingMat = new THREE.MeshStandardMaterial({ color: WARM_WHITE, roughness: 0.3 });
+            const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(STORE_WIDTH, STORE_DEPTH), ceilingMat);
+            ceiling.rotation.x = Math.PI / 2;
+            ceiling.position.y = STORE_HEIGHT;
+            scene.add(ceiling);
+            
+            // 艺术天花板装置 - 悬浮金环阵列
+            createArtisticCeiling(0, STORE_HEIGHT - 1, 0);
+            
+            // ===== 品牌展示墙 - Cocoa Tea Gold 装饰 =====
+            const brandGoldStrip = new THREE.Mesh(
+                new THREE.BoxGeometry(80, 1.2, 0.15), 
+                new THREE.MeshStandardMaterial({ color: COCOA_TEA_GOLD, metalness: 0.85, roughness: 0.15 })
+            );
+            brandGoldStrip.position.set(0, 14.5, -STORE_DEPTH/2 + 0.8);
+            scene.add(brandGoldStrip);
+            
+            // 超大曲面LED展示屏
+            const mainScreenGroup = new THREE.Group();
+            const screenFrame = new THREE.Mesh(
+                new THREE.BoxGeometry(50, 11, 0.8), 
+                new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.9 })
+            );
+            screenFrame.position.set(0, 0, 0);
+            mainScreenGroup.add(screenFrame);
+            // 屏幕发光面
+            const screenGlow = new THREE.Mesh(
+                new THREE.PlaneGeometry(48, 9.5), 
+                new THREE.MeshBasicMaterial({ color: 0x0a4a7a })
+            );
+            screenGlow.position.set(0, 0, 0.45);
+            mainScreenGroup.add(screenGlow);
+            // 金色边框
+            const screenBorder = new THREE.Mesh(
+                new THREE.BoxGeometry(52, 0.3, 0.9), 
+                new THREE.MeshStandardMaterial({ color: COCOA_TEA_GOLD, metalness: 0.9 })
+            );
+            screenBorder.position.set(0, 5.8, 0);
+            mainScreenGroup.add(screenBorder);
+            const screenBorder2 = screenBorder.clone();
+            screenBorder2.position.set(0, -5.8, 0);
+            mainScreenGroup.add(screenBorder2);
+            mainScreenGroup.position.set(0, 7, -STORE_DEPTH/2 + 1.5);
+            mainScreenGroup.userData = { name: '品牌展示屏', labelOffset: 12, labelType: 'c3' };
+            scene.add(mainScreenGroup);
+            sceneObjects.push(mainScreenGroup);
+            
+            // ===== 暖色环境光带 =====
+            const warmLedMat = new THREE.MeshBasicMaterial({ color: 0xfff5e6 });
+            // 天花板边缘灯带
+            for(let i = -70; i <= 70; i += 20) {
+                const ledStrip = new THREE.Mesh(new THREE.BoxGeometry(18, 0.15, 1.5), warmLedMat);
+                ledStrip.position.set(i, STORE_HEIGHT - 0.1, -STORE_DEPTH/2 + 8);
+                scene.add(ledStrip);
+            }
+            // 侧面装饰灯带
+            for(let z = -50; z <= 45; z += 15) {
+                const sideLed = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.3, 12), warmLedMat);
+                sideLed.position.set(-STORE_WIDTH/2 + 1, 15, z);
+                scene.add(sideLed);
+                const sideLed2 = sideLed.clone();
+                sideLed2.position.set(STORE_WIDTH/2 - 1, 15, z);
+                scene.add(sideLed2);
+            }
+            
+            // ===== 展示区域 - 对称布局 =====
+            // 中央手机旗舰展示岛
+            createFlagshipPhoneIsland(0, -30, '手机展示区');
+            
+            // 左侧平板体验区
+            createPremiumTabletZone(-45, 5, '平板展示区');
+            
+            // 右侧笔记本体验区
+            createPremiumLaptopZone(45, 5, '笔记本展示区');
+            
+            // 中央穿戴设备展示台
+            createLuxuryWatchDisplay(0, 15, '智能穿戴区');
+            
+            // 智能家居体验区
+            createSmartHomeExperience(-45, -30, '智能家居区');
+            
+            // 配件展示墙
+            createPremiumAccessoryWall(STORE_WIDTH/2 - 3, 0, '配件展示墙');
+            
+            // ===== 城市客厅概念 - 社交休息区 =====
+            createCityLivingRoom(45, 35, '体验休息区');
+            
+            // 服务中心
+            createPremiumServiceDesk(-55, 45, '服务台');
+            
+            // ===== 精品射灯系统 =====
+            const spotlightMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, metalness: 0.8 });
+            for(let x = -60; x <= 60; x += 25) {
+                for(let z = -45; z <= 40; z += 22) {
+                    const spotGroup = new THREE.Group();
+                    const spotBody = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.6, 0.6, 16), spotlightMat);
+                    spotGroup.add(spotBody);
+                    // 金色装饰环
+                    const goldRing = new THREE.Mesh(
+                        new THREE.TorusGeometry(0.5, 0.08, 8, 24),
+                        new THREE.MeshStandardMaterial({ color: COCOA_TEA_GOLD, metalness: 0.9 })
+                    );
+                    goldRing.rotation.x = Math.PI / 2;
+                    goldRing.position.y = -0.2;
+                    spotGroup.add(goldRing);
+                    // 灯光效果
+                    const lightCone = new THREE.Mesh(
+                        new THREE.ConeGeometry(0.3, 0.8, 16, 1, true),
+                        new THREE.MeshBasicMaterial({ color: 0xfff8e7, transparent: true, opacity: 0.15 })
+                    );
+                    lightCone.position.y = -0.7;
+                    lightCone.rotation.x = Math.PI;
+                    spotGroup.add(lightCone);
+                    spotGroup.position.set(x, STORE_HEIGHT - 0.4, z);
+                    scene.add(spotGroup);
+                }
+            }
+            
+            // ===== 大型绿植装饰 =====
+            createLuxuryPlant(-70, 50, 2.5);
+            createLuxuryPlant(70, 50, 2.5);
+            createLuxuryPlant(-70, -50, 2.2);
+            createLuxuryPlant(70, -50, 2.2);
+            createLuxuryPlant(-35, 50, 1.8);
+            createLuxuryPlant(35, 50, 1.8);
+            createLuxuryPlant(0, 52, 3);
+            
+            // ===== 顾客模型 (简化表示) =====
+            createShopperFigure(-10, -28, Math.PI * 0.3);
+            createShopperFigure(15, -32, -Math.PI * 0.2);
+            createShopperFigure(-42, 8, Math.PI * 0.5);
+            createShopperFigure(48, 3, -Math.PI * 0.4);
+            createShopperFigure(40, 38, Math.PI * 0.1);
+        }
+        
+        // ===== 绿色植物墙 =====
+        function createGreenWall(x, y, z, width, height, length) {
+            const group = new THREE.Group();
+            const baseColor = 0x2d5a27;
+            const leafColors = [0x228b22, 0x32cd32, 0x3cb371, 0x2e8b57, 0x006400];
+            
+            // 背板
+            const backMat = new THREE.MeshStandardMaterial({ color: 0x1a3a1a, roughness: 0.8 });
+            const back = new THREE.Mesh(new THREE.BoxGeometry(width, height, length), backMat);
+            group.add(back);
+            
+            // 植物叶片簇
+            for(let ly = -height/2 + 1; ly < height/2 - 0.5; ly += 1.5) {
+                for(let lz = -length/2 + 1; lz < length/2 - 0.5; lz += 1.8) {
+                    const leafCluster = new THREE.Mesh(
+                        new THREE.SphereGeometry(0.8 + Math.random() * 0.4, 6, 6),
+                        new THREE.MeshStandardMaterial({ 
+                            color: leafColors[Math.floor(Math.random() * leafColors.length)],
+                            roughness: 0.7
+                        })
+                    );
+                    leafCluster.position.set(width/2 + 0.3, ly + Math.random() * 0.3, lz + Math.random() * 0.5);
+                    leafCluster.scale.set(1.2, 0.8, 1);
+                    group.add(leafCluster);
+                }
+            }
+            group.position.set(x, y, z);
+            scene.add(group);
+        }
+        
+        // ===== 艺术天花板装置 =====
+        function createArtisticCeiling(x, y, z) {
+            const group = new THREE.Group();
+            const goldMat = new THREE.MeshStandardMaterial({ 
+                color: 0xc9a86c, 
+                metalness: 0.85, 
+                roughness: 0.15 
+            });
+            
+            // 悬浮金环阵列
+            const ringPositions = [
+                [0, 0, 3], [-15, -10, 2.5], [15, -10, 2.8], [-25, 5, 2.2],
+                [25, 5, 2.6], [0, 15, 2.4], [-35, -20, 2], [35, -20, 2.3],
+                [-10, 25, 2.1], [10, 25, 2.7], [-45, 10, 1.8], [45, 10, 2]
+            ];
+            
+            ringPositions.forEach(([rx, rz, size]) => {
+                const ring = new THREE.Mesh(
+                    new THREE.TorusGeometry(size, 0.12, 16, 48),
+                    goldMat
+                );
+                ring.rotation.x = Math.PI / 2;
+                ring.position.set(rx, -Math.random() * 2 - 1, rz);
+                group.add(ring);
+                
+                // 细线悬挂
+                const wire = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.02, 0.02, Math.random() * 1.5 + 1, 8),
+                    new THREE.MeshStandardMaterial({ color: 0xc0c0c0, metalness: 0.9 })
+                );
+                wire.position.set(rx, -0.5, rz);
+                group.add(wire);
+            });
+            
+            // 中央大型艺术装置
+            const centerRing = new THREE.Mesh(
+                new THREE.TorusGeometry(5, 0.2, 24, 64),
+                goldMat
+            );
+            centerRing.rotation.x = Math.PI / 2;
+            centerRing.position.set(0, -2.5, -15);
+            group.add(centerRing);
+            
+            group.position.set(x, y, z);
+            scene.add(group);
+        }
+        
+        // ===== 旗舰手机展示岛 =====
+        function createFlagshipPhoneIsland(x, z, name) {
+            const group = new THREE.Group();
+            const COCOA_TEA_GOLD = 0xc9a86c;
+            const NATURAL_WOOD = 0xd4a574;
+            
+            // 椭圆形展示岛基座
+            const islandBase = new THREE.Mesh(
+                new THREE.CylinderGeometry(18, 19, 0.4, 48),
+                new THREE.MeshStandardMaterial({ color: NATURAL_WOOD, roughness: 0.35, metalness: 0.05 })
+            );
+            islandBase.position.y = 0.2;
+            group.add(islandBase);
+            
+            // 金色装饰边
+            const goldEdge = new THREE.Mesh(
+                new THREE.TorusGeometry(18.5, 0.15, 16, 64),
+                new THREE.MeshStandardMaterial({ color: COCOA_TEA_GOLD, metalness: 0.9, roughness: 0.1 })
+            );
+            goldEdge.rotation.x = Math.PI / 2;
+            goldEdge.position.y = 0.4;
+            group.add(goldEdge);
+            
+            // 主展示台面
+            const mainTable = new THREE.Mesh(
+                new THREE.CylinderGeometry(16, 16, 0.9, 48),
+                new THREE.MeshStandardMaterial({ color: 0xfaf8f5, roughness: 0.2, metalness: 0.02 })
+            );
+            mainTable.position.y = 0.85;
+            group.add(mainTable);
+            
+            // 手机展示
+            const phoneMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.95, roughness: 0.1 });
+            for(let i = 0; i < 8; i++) {
+                const angle = (i * Math.PI * 2) / 8;
+                const radius = 11;
+                const phoneGroup = new THREE.Group();
+                
+                // 亚克力展示支架
+                const standBase = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.6, 0.7, 0.15, 24),
+                    new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, roughness: 0.1 })
+                );
+                standBase.position.y = 0.075;
+                phoneGroup.add(standBase);
+                
+                const standPole = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.08, 0.1, 0.8, 16),
+                    new THREE.MeshStandardMaterial({ color: COCOA_TEA_GOLD, metalness: 0.9 })
+                );
+                standPole.position.y = 0.55;
+                phoneGroup.add(standPole);
+                
+                // 手机本体
+                const phone = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.7, 0.09), phoneMat);
+                phone.position.y = 1.5;
+                phone.rotation.x = -0.12;
+                phoneGroup.add(phone);
+                
+                // 手机屏幕
+                const screenColor = c3Devices.phones[i].battery < 20 ? 0xff4444 : 0x1a73e8;
+                const screen = new THREE.Mesh(
+                    new THREE.PlaneGeometry(0.72, 1.55), 
+                    new THREE.MeshBasicMaterial({ color: screenColor })
+                );
+                screen.position.set(0, 1.5, 0.05);
+                screen.rotation.x = -0.12;
+                phoneGroup.add(screen);
+                
+                phoneGroup.position.set(Math.cos(angle) * radius, 1.3, Math.sin(angle) * radius);
+                phoneGroup.rotation.y = -angle + Math.PI / 2;
+                group.add(phoneGroup);
+            }
+            
+            // 中央品牌立柱
+            const centerPillar = new THREE.Mesh(
+                new THREE.CylinderGeometry(1.2, 1.5, 3, 32),
+                new THREE.MeshStandardMaterial({ color: COCOA_TEA_GOLD, metalness: 0.85, roughness: 0.15 })
+            );
+            centerPillar.position.y = 2.8;
+            group.add(centerPillar);
+            
+            group.position.set(x, 0, z);
+            group.userData = { name, labelOffset: 5, labelType: 'c3' };
+            scene.add(group);
+            sceneObjects.push(group);
+        }
+        
+        // ===== 高端平板展示区 =====
+        function createPremiumTabletZone(x, z, name) {
+            const group = new THREE.Group();
+            const COCOA_TEA_GOLD = 0xc9a86c;
+            const NATURAL_WOOD = 0xd4a574;
+            
+            // L型展示台
+            const tableMat = new THREE.MeshStandardMaterial({ color: NATURAL_WOOD, roughness: 0.35 });
+            const table1 = new THREE.Mesh(new THREE.BoxGeometry(20, 0.9, 8), tableMat);
+            table1.position.set(0, 0.45, 0);
+            group.add(table1);
+            const table2 = new THREE.Mesh(new THREE.BoxGeometry(8, 0.9, 15), tableMat);
+            table2.position.set(-6, 0.45, 11.5);
+            group.add(table2);
+            
+            // 金色装饰条
+            const goldStrip = new THREE.Mesh(
+                new THREE.BoxGeometry(20.5, 0.12, 0.12),
+                new THREE.MeshStandardMaterial({ color: COCOA_TEA_GOLD, metalness: 0.9 })
+            );
+            goldStrip.position.set(0, 0.96, -3.9);
+            group.add(goldStrip);
+            
+            // 平板展示
+            const tabletMat = new THREE.MeshStandardMaterial({ color: 0x2d2d2d, metalness: 0.8 });
+            for(let i = 0; i < 6; i++) {
+                const tabletGroup = new THREE.Group();
+                
+                // 支架
+                const stand = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.4, 1.4, 1),
+                    new THREE.MeshStandardMaterial({ color: 0xf0f0f0, metalness: 0.3 })
+                );
+                stand.position.y = 0.7;
+                tabletGroup.add(stand);
+                
+                // 平板
+                const tablet = new THREE.Mesh(new THREE.BoxGeometry(2, 2.8, 0.07), tabletMat);
+                tablet.position.y = 1.8;
+                tablet.rotation.x = -0.18;
+                tabletGroup.add(tablet);
+                
+                // 屏幕
+                const screenColor = c3Devices.tablets[i].battery < 20 ? 0xff4444 : 0x4fc3f7;
+                const screen = new THREE.Mesh(
+                    new THREE.PlaneGeometry(1.85, 2.6),
+                    new THREE.MeshBasicMaterial({ color: screenColor })
+                );
+                screen.position.set(0, 1.8, 0.04);
+                screen.rotation.x = -0.18;
+                tabletGroup.add(screen);
+                
+                if(i < 4) {
+                    tabletGroup.position.set(-8 + i * 5.5, 0.9, 0);
+                } else {
+                    tabletGroup.position.set(-6, 0.9, 6 + (i - 4) * 6);
+                    tabletGroup.rotation.y = Math.PI / 2;
+                }
+                group.add(tabletGroup);
+            }
+            
+            group.position.set(x, 0, z);
+            group.userData = { name, labelOffset: 4.5, labelType: 'c3' };
+            scene.add(group);
+            sceneObjects.push(group);
+        }
+        
+        // ===== 高端笔记本展示区 =====
+        function createPremiumLaptopZone(x, z, name) {
+            const group = new THREE.Group();
+            const COCOA_TEA_GOLD = 0xc9a86c;
+            const NATURAL_WOOD = 0xd4a574;
+            
+            // 阶梯式展示台
+            for(let i = 0; i < 3; i++) {
+                const stepTable = new THREE.Mesh(
+                    new THREE.BoxGeometry(22, 0.8 + i * 0.25, 6),
+                    new THREE.MeshStandardMaterial({ color: NATURAL_WOOD, roughness: 0.35 })
+                );
+                stepTable.position.set(0, 0.4 + i * 0.3, i * 7);
+                group.add(stepTable);
+                
+                // 金色侧边
+                const goldSide = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.1, 0.8 + i * 0.25, 6),
+                    new THREE.MeshStandardMaterial({ color: COCOA_TEA_GOLD, metalness: 0.9 })
+                );
+                goldSide.position.set(11, 0.4 + i * 0.3, i * 7);
+                group.add(goldSide);
+            }
+            
+            // 笔记本展示
+            const laptopMat = new THREE.MeshStandardMaterial({ color: 0x505050, metalness: 0.85 });
+            for(let i = 0; i < 5; i++) {
+                const laptopGroup = new THREE.Group();
+                const row = Math.floor(i / 2);
+                const col = i % 2;
+                
+                // 底座
+                const base = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.12, 2.2), laptopMat);
+                laptopGroup.add(base);
+                
+                // 屏幕
+                const screenPart = new THREE.Mesh(new THREE.BoxGeometry(3.2, 2.2, 0.1), laptopMat);
+                screenPart.position.set(0, 1.1, -1);
+                screenPart.rotation.x = -0.12;
+                laptopGroup.add(screenPart);
+                
+                const screenColor = c3Devices.laptops[i].battery < 20 ? 0xff4444 : 0x1a73e8;
+                const screen = new THREE.Mesh(
+                    new THREE.PlaneGeometry(3, 2),
+                    new THREE.MeshBasicMaterial({ color: screenColor })
+                );
+                screen.position.set(0, 1.1, -0.94);
+                screen.rotation.x = -0.12;
+                laptopGroup.add(screen);
+                
+                // 键盘
+                const keyboard = new THREE.Mesh(
+                    new THREE.PlaneGeometry(2.8, 1.5),
+                    new THREE.MeshStandardMaterial({ color: 0x1a1a1a })
+                );
+                keyboard.rotation.x = -Math.PI / 2;
+                keyboard.position.set(0, 0.07, 0.2);
+                laptopGroup.add(keyboard);
+                
+                if(i < 4) {
+                    laptopGroup.position.set(-5 + col * 10, 0.8 + row * 0.3 + 0.1, row * 7);
+                } else {
+                    laptopGroup.position.set(0, 1.4, 14);
+                }
+                group.add(laptopGroup);
+            }
+            
+            group.position.set(x, 0, z);
+            group.userData = { name, labelOffset: 4.5, labelType: 'c3' };
+            scene.add(group);
+            sceneObjects.push(group);
+        }
+        
+        // ===== 奢华手表展示区 =====
+        function createLuxuryWatchDisplay(x, z, name) {
+            const group = new THREE.Group();
+            const COCOA_TEA_GOLD = 0xc9a86c;
+            
+            // 圆形玻璃展示柜
+            const displayCase = new THREE.Mesh(
+                new THREE.CylinderGeometry(8, 8, 0.15, 48),
+                new THREE.MeshStandardMaterial({ color: 0xfaf8f5, roughness: 0.15 })
+            );
+            displayCase.position.y = 1.2;
+            group.add(displayCase);
+            
+            // 金色底座
+            const goldBase = new THREE.Mesh(
+                new THREE.CylinderGeometry(8.3, 8.5, 1.1, 48),
+                new THREE.MeshStandardMaterial({ color: COCOA_TEA_GOLD, metalness: 0.85, roughness: 0.15 })
+            );
+            goldBase.position.y = 0.55;
+            group.add(goldBase);
+            
+            // 中央展示柱
+            const centerDisplay = new THREE.Mesh(
+                new THREE.CylinderGeometry(1.5, 1.8, 2.5, 32),
+                new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.2 })
+            );
+            centerDisplay.position.y = 2.5;
+            group.add(centerDisplay);
+            
+            // 手表展示
+            const watchMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.98 });
+            for(let i = 0; i < 5; i++) {
+                const angle = (i * Math.PI * 2) / 5 - Math.PI / 2;
+                const radius = 5;
+                const watchGroup = new THREE.Group();
+                
+                // 展示台
+                const watchStand = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.7, 0.85, 0.6, 24),
+                    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.15 })
+                );
+                watchStand.position.y = 0.3;
+                watchGroup.add(watchStand);
+                
+                // 金色环
+                const goldRing = new THREE.Mesh(
+                    new THREE.TorusGeometry(0.75, 0.05, 12, 32),
+                    new THREE.MeshStandardMaterial({ color: COCOA_TEA_GOLD, metalness: 0.95 })
+                );
+                goldRing.rotation.x = Math.PI / 2;
+                goldRing.position.y = 0.6;
+                watchGroup.add(goldRing);
+                
+                // 手表
+                const watch = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.5, 0.5, 0.14, 32),
+                    watchMat
+                );
+                watch.position.y = 0.85;
+                watch.rotation.x = Math.PI / 5;
+                watchGroup.add(watch);
+                
+                // 表盘
+                const dialColor = c3Devices.watches[i].battery < 30 ? 0xffa726 : 0x66bb6a;
+                const dial = new THREE.Mesh(
+                    new THREE.CircleGeometry(0.42, 32),
+                    new THREE.MeshBasicMaterial({ color: dialColor })
+                );
+                dial.position.set(0, 0.88, 0.06);
+                dial.rotation.x = Math.PI / 5;
+                watchGroup.add(dial);
+                
+                // 表带
+                const strap = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.38, 0.1, 1.4),
+                    new THREE.MeshStandardMaterial({ color: 0x2d2d2d })
+                );
+                strap.position.y = 0.85;
+                strap.rotation.x = Math.PI / 5;
+                watchGroup.add(strap);
+                
+                watchGroup.position.set(Math.cos(angle) * radius, 1.3, Math.sin(angle) * radius);
+                watchGroup.rotation.y = -angle;
+                group.add(watchGroup);
+            }
+            
+            group.position.set(x, 0, z);
+            group.userData = { name, labelOffset: 5, labelType: 'c3' };
+            scene.add(group);
+            sceneObjects.push(group);
+        }
+        
+        // ===== 智能家居体验区 =====
+        function createSmartHomeExperience(x, z, name) {
+            const group = new THREE.Group();
+            const COCOA_TEA_GOLD = 0xc9a86c;
+            const NATURAL_WOOD = 0xd4a574;
+            
+            // 展示平台
+            const platform = new THREE.Mesh(
+                new THREE.BoxGeometry(18, 0.3, 14),
+                new THREE.MeshStandardMaterial({ color: NATURAL_WOOD, roughness: 0.3 })
+            );
+            platform.position.y = 0.15;
+            group.add(platform);
+            
+            // 金色边框
+            const borderMat = new THREE.MeshStandardMaterial({ color: COCOA_TEA_GOLD, metalness: 0.9 });
+            const border1 = new THREE.Mesh(new THREE.BoxGeometry(18.3, 0.1, 0.15), borderMat);
+            border1.position.set(0, 0.35, -6.9);
+            group.add(border1);
+            const border2 = border1.clone();
+            border2.position.set(0, 0.35, 6.9);
+            group.add(border2);
+            
+            // 展示桌
+            const tableMat = new THREE.MeshStandardMaterial({ color: 0xfaf8f5, roughness: 0.2 });
+            const displayTable = new THREE.Mesh(new THREE.BoxGeometry(14, 0.8, 10), tableMat);
+            displayTable.position.y = 0.7;
+            group.add(displayTable);
+            
+            // 智能音箱
+            const speaker = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.8, 1, 2, 24),
+                new THREE.MeshStandardMaterial({ color: 0x2d2d2d, metalness: 0.5 })
+            );
+            speaker.position.set(-4, 2.1, 0);
+            group.add(speaker);
+            // 音箱灯环
+            const speakerRing = new THREE.Mesh(
+                new THREE.TorusGeometry(0.85, 0.08, 12, 32),
+                new THREE.MeshBasicMaterial({ color: 0x4fc3f7 })
+            );
+            speakerRing.rotation.x = Math.PI / 2;
+            speakerRing.position.set(-4, 3.15, 0);
+            group.add(speakerRing);
+            
+            // 智能台灯
+            const lampBase = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.6, 0.7, 0.3, 24),
+                new THREE.MeshStandardMaterial({ color: COCOA_TEA_GOLD, metalness: 0.85 })
+            );
+            lampBase.position.set(0, 1.25, 0);
+            group.add(lampBase);
+            const lampPole = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.1, 0.1, 2.5, 16),
+                new THREE.MeshStandardMaterial({ color: 0xc0c0c0, metalness: 0.9 })
+            );
+            lampPole.position.set(0, 2.65, 0);
+            group.add(lampPole);
+            const lampHead = new THREE.Mesh(
+                new THREE.CylinderGeometry(1, 0.5, 0.4, 24),
+                new THREE.MeshStandardMaterial({ color: 0xffffff })
+            );
+            lampHead.position.set(0, 4, 0);
+            group.add(lampHead);
+            // 灯光
+            const lampLight = new THREE.Mesh(
+                new THREE.CircleGeometry(0.9, 24),
+                new THREE.MeshBasicMaterial({ color: 0xfff5e6 })
+            );
+            lampLight.rotation.x = Math.PI / 2;
+            lampLight.position.set(0, 3.78, 0);
+            group.add(lampLight);
+            
+            // 路由器
+            const router = new THREE.Mesh(
+                new THREE.BoxGeometry(1.5, 0.25, 1),
+                new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.3 })
+            );
+            router.position.set(4, 1.22, 0);
+            group.add(router);
+            // 天线
+            for(let i = -1; i <= 1; i++) {
+                const antenna = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.04, 0.04, 1.2, 8),
+                    new THREE.MeshStandardMaterial({ color: 0x333333 })
+                );
+                antenna.position.set(4 + i * 0.4, 1.95, 0);
+                antenna.rotation.z = i * 0.15;
+                group.add(antenna);
+            }
+            
+            group.position.set(x, 0, z);
+            group.userData = { name, labelOffset: 5.5, labelType: 'c3' };
+            scene.add(group);
+            sceneObjects.push(group);
+        }
+        
+        // ===== 高端配件墙 =====
+        function createPremiumAccessoryWall(x, z, name) {
+            const group = new THREE.Group();
+            const COCOA_TEA_GOLD = 0xc9a86c;
+            
+            // 背板
+            const backMat = new THREE.MeshStandardMaterial({ color: 0xfaf8f5, roughness: 0.3 });
+            const backboard = new THREE.Mesh(new THREE.BoxGeometry(0.3, 12, 30), backMat);
+            group.add(backboard);
+            
+            // 金色装饰框架
+            const frameMat = new THREE.MeshStandardMaterial({ color: COCOA_TEA_GOLD, metalness: 0.9 });
+            const topFrame = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.2, 30.5), frameMat);
+            topFrame.position.set(0, 6, 0);
+            group.add(topFrame);
+            const bottomFrame = topFrame.clone();
+            bottomFrame.position.set(0, -6, 0);
+            group.add(bottomFrame);
+            
+            // 层架
+            for(let i = 0; i < 4; i++) {
+                const shelf = new THREE.Mesh(
+                    new THREE.BoxGeometry(1.8, 0.12, 28),
+                    new THREE.MeshStandardMaterial({ color: 0xf5f0e8, roughness: 0.2 })
+                );
+                shelf.position.set(1, -4.5 + i * 3, 0);
+                group.add(shelf);
+                
+                // 金色支撑
+                for(let j = -12; j <= 12; j += 8) {
+                    const support = new THREE.Mesh(
+                        new THREE.BoxGeometry(0.08, 0.08, 0.5),
+                        frameMat
+                    );
+                    support.position.set(0.3, -4.5 + i * 3 - 0.1, j);
+                    group.add(support);
+                }
+                
+                // 配件盒
+                for(let j = 0; j < 7; j++) {
+                    const boxColors = [0xffffff, 0x1a1a1a, 0xf5f5f5, 0x2d2d2d];
+                    const box = new THREE.Mesh(
+                        new THREE.BoxGeometry(1.2, 1.8, 3.5),
+                        new THREE.MeshStandardMaterial({ 
+                            color: boxColors[Math.floor(Math.random() * boxColors.length)],
+                            roughness: 0.3
+                        })
+                    );
+                    box.position.set(1, -3.5 + i * 3, -10.5 + j * 3.5);
+                    group.add(box);
+                }
+            }
+            
+            group.position.set(x, 6, z);
+            group.userData = { name, labelOffset: 8, labelType: 'c3' };
+            scene.add(group);
+            sceneObjects.push(group);
+        }
+        
+        // ===== 城市客厅休息区 =====
+        function createCityLivingRoom(x, z, name) {
+            const group = new THREE.Group();
+            const COCOA_TEA_GOLD = 0xc9a86c;
+            const NATURAL_WOOD = 0xd4a574;
+            
+            // 地毯
+            const carpet = new THREE.Mesh(
+                new THREE.PlaneGeometry(18, 14),
+                new THREE.MeshStandardMaterial({ color: 0xe8e0d5, roughness: 0.8 })
+            );
+            carpet.rotation.x = -Math.PI / 2;
+            carpet.position.y = 0.02;
+            group.add(carpet);
+            
+            // L型沙发
+            const sofaMat = new THREE.MeshStandardMaterial({ color: 0x4a4a4a, roughness: 0.6 });
+            // 主沙发
+            const sofaMain = new THREE.Mesh(new THREE.BoxGeometry(10, 0.6, 3.5), sofaMat);
+            sofaMain.position.set(0, 0.3, 4);
+            group.add(sofaMain);
+            const sofaBack = new THREE.Mesh(new THREE.BoxGeometry(10, 1.2, 0.6), sofaMat);
+            sofaBack.position.set(0, 0.9, 5.45);
+            group.add(sofaBack);
+            // 侧沙发
+            const sofaSide = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.6, 6), sofaMat);
+            sofaSide.position.set(6.75, 0.3, 1.5);
+            group.add(sofaSide);
+            const sofaSideBack = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.2, 6), sofaMat);
+            sofaSideBack.position.set(8.2, 0.9, 1.5);
+            group.add(sofaSideBack);
+            
+            // 坐垫
+            const cushionMat = new THREE.MeshStandardMaterial({ color: 0x5a5a5a, roughness: 0.5 });
+            for(let i = 0; i < 3; i++) {
+                const cushion = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.25, 2.8), cushionMat);
+                cushion.position.set(-3.2 + i * 3.2, 0.72, 4);
+                group.add(cushion);
+            }
+            
+            // 咖啡桌
+            const coffeeTable = new THREE.Mesh(
+                new THREE.CylinderGeometry(2.5, 2.5, 0.12, 32),
+                new THREE.MeshStandardMaterial({ color: NATURAL_WOOD, roughness: 0.3 })
+            );
+            coffeeTable.position.set(0, 0.5, 0);
+            group.add(coffeeTable);
+            // 金色桌腿
+            const legMat = new THREE.MeshStandardMaterial({ color: COCOA_TEA_GOLD, metalness: 0.9 });
+            for(let i = 0; i < 3; i++) {
+                const angle = (i * Math.PI * 2) / 3;
+                const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.45, 16), legMat);
+                leg.position.set(Math.cos(angle) * 1.8, 0.22, Math.sin(angle) * 1.8);
+                group.add(leg);
+            }
+            
+            // 装饰品
+            const vaseMat = new THREE.MeshStandardMaterial({ color: COCOA_TEA_GOLD, metalness: 0.7 });
+            const vase = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 0.8, 16), vaseMat);
+            vase.position.set(-0.5, 0.96, 0);
+            group.add(vase);
+            // 花
+            const flower = new THREE.Mesh(
+                new THREE.SphereGeometry(0.35, 8, 8),
+                new THREE.MeshStandardMaterial({ color: 0x90ee90 })
+            );
+            flower.position.set(-0.5, 1.5, 0);
+            group.add(flower);
+            
+            // 边几
+            const sideTable = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.5, 0.5, 0.6, 24),
+                new THREE.MeshStandardMaterial({ color: 0xfaf8f5, roughness: 0.2 })
+            );
+            sideTable.position.set(-5.5, 0.3, 4);
+            group.add(sideTable);
+            
+            group.position.set(x, 0, z);
+            group.userData = { name, labelOffset: 3.5, labelType: 'c3' };
+            scene.add(group);
+            sceneObjects.push(group);
+        }
+        
+        // ===== 高端服务台 =====
+        function createPremiumServiceDesk(x, z, name) {
+            const group = new THREE.Group();
+            const COCOA_TEA_GOLD = 0xc9a86c;
+            
+            // 主服务台
+            const deskMat = new THREE.MeshStandardMaterial({ color: 0xfaf8f5, roughness: 0.2 });
+            const desk = new THREE.Mesh(new THREE.BoxGeometry(10, 1.1, 3), deskMat);
+            desk.position.y = 0.55;
+            group.add(desk);
+            
+            // 金色顶边
+            const goldTop = new THREE.Mesh(
+                new THREE.BoxGeometry(10.2, 0.08, 3.2),
+                new THREE.MeshStandardMaterial({ color: COCOA_TEA_GOLD, metalness: 0.9 })
+            );
+            goldTop.position.y = 1.14;
+            group.add(goldTop);
+            
+            // 前面板装饰
+            const frontPanel = new THREE.Mesh(
+                new THREE.BoxGeometry(10, 0.9, 0.15),
+                new THREE.MeshStandardMaterial({ color: 0xf5f0e8, roughness: 0.3 })
+            );
+            frontPanel.position.set(0, 0.55, -1.5);
+            group.add(frontPanel);
+            
+            // 金色品牌标识
+            const brandLogo = new THREE.Mesh(
+                new THREE.BoxGeometry(3, 0.5, 0.1),
+                new THREE.MeshStandardMaterial({ color: COCOA_TEA_GOLD, metalness: 0.95 })
+            );
+            brandLogo.position.set(0, 0.55, -1.55);
+            group.add(brandLogo);
+            
+            // 电脑显示器
+            const monitorGroup = new THREE.Group();
+            const monitor = new THREE.Mesh(
+                new THREE.BoxGeometry(2, 1.3, 0.1),
+                new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.9 })
+            );
+            monitor.position.y = 0.65;
+            monitorGroup.add(monitor);
+            const monitorScreen = new THREE.Mesh(
+                new THREE.PlaneGeometry(1.85, 1.15),
+                new THREE.MeshBasicMaterial({ color: 0x1a73e8 })
+            );
+            monitorScreen.position.set(0, 0.65, 0.06);
+            monitorGroup.add(monitorScreen);
+            const monitorStand = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.12, 0.18, 0.6, 16),
+                new THREE.MeshStandardMaterial({ color: 0xc0c0c0, metalness: 0.9 })
+            );
+            monitorStand.position.y = -0.05;
+            monitorGroup.add(monitorStand);
+            monitorGroup.position.set(-2.5, 1.15, 0.5);
+            group.add(monitorGroup);
+            
+            // 第二台显示器
+            const monitor2 = monitorGroup.clone();
+            monitor2.position.set(2.5, 1.15, 0.5);
+            group.add(monitor2);
+            
+            group.position.set(x, 0, z);
+            group.userData = { name, labelOffset: 4, labelType: 'c3' };
+            scene.add(group);
+            sceneObjects.push(group);
+        }
+        
+        // ===== 豪华绿植 =====
+        function createLuxuryPlant(x, z, scale) {
+            const group = new THREE.Group();
+            const COCOA_TEA_GOLD = 0xc9a86c;
+            
+            // 金色花盆
+            const potOuter = new THREE.Mesh(
+                new THREE.CylinderGeometry(1.2, 0.9, 1.5, 24),
+                new THREE.MeshStandardMaterial({ color: COCOA_TEA_GOLD, metalness: 0.7, roughness: 0.25 })
+            );
+            potOuter.position.y = 0.75;
+            group.add(potOuter);
+            
+            // 内盆
+            const potInner = new THREE.Mesh(
+                new THREE.CylinderGeometry(1, 0.7, 1.3, 24),
+                new THREE.MeshStandardMaterial({ color: 0x3a2a1a })
+            );
+            potInner.position.y = 0.85;
+            group.add(potInner);
+            
+            // 植物
+            const plantColors = [0x228b22, 0x32cd32, 0x2e8b57];
+            for(let i = 0; i < 5; i++) {
+                const leaf = new THREE.Mesh(
+                    new THREE.SphereGeometry(1.5 + Math.random() * 0.5, 8, 8),
+                    new THREE.MeshStandardMaterial({ 
+                        color: plantColors[Math.floor(Math.random() * plantColors.length)],
+                        roughness: 0.6
+                    })
+                );
+                const angle = (i * Math.PI * 2) / 5;
+                leaf.position.set(
+                    Math.cos(angle) * 0.5,
+                    2.5 + Math.random() * 0.8,
+                    Math.sin(angle) * 0.5
+                );
+                leaf.scale.set(1, 0.7, 1);
+                group.add(leaf);
+            }
+            
+            // 顶部主叶
+            const topLeaf = new THREE.Mesh(
+                new THREE.SphereGeometry(1.8, 8, 8),
+                new THREE.MeshStandardMaterial({ color: 0x228b22, roughness: 0.6 })
+            );
+            topLeaf.position.y = 3.5;
+            topLeaf.scale.set(1, 0.8, 1);
+            group.add(topLeaf);
+            
+            group.position.set(x, 0, z);
+            group.scale.setScalar(scale);
+            scene.add(group);
+        }
+        
+        // ===== 顾客人物模型 =====
+        function createShopperFigure(x, z, rotation) {
+            const group = new THREE.Group();
+            
+            // 身体
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0x4a4a4a, roughness: 0.6 });
+            const body = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.35, 1.2, 16), bodyMat);
+            body.position.y = 1.1;
+            group.add(body);
+            
+            // 头
+            const head = new THREE.Mesh(
+                new THREE.SphereGeometry(0.25, 16, 16),
+                new THREE.MeshStandardMaterial({ color: 0xf5deb3, roughness: 0.5 })
+            );
+            head.position.y = 1.95;
+            group.add(head);
+            
+            // 头发
+            const hair = new THREE.Mesh(
+                new THREE.SphereGeometry(0.27, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+                new THREE.MeshStandardMaterial({ color: 0x2a1a0a })
+            );
+            hair.position.y = 2.02;
+            group.add(hair);
+            
+            // 腿
+            const legMat = new THREE.MeshStandardMaterial({ color: 0x2d2d2d });
+            const leg1 = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.1, 0.9, 12), legMat);
+            leg1.position.set(0.15, 0.45, 0);
+            group.add(leg1);
+            const leg2 = leg1.clone();
+            leg2.position.set(-0.15, 0.45, 0);
+            group.add(leg2);
+            
+            group.position.set(x, 0, z);
+            group.rotation.y = rotation;
+            scene.add(group);
+        }
+        
+        
+        function renderC3List(devices, id) {
+            const container = document.getElementById(id);
+            if(!container) return;
+            container.innerHTML = devices.map(d => {
+                const color = d.battery < 20 ? '#ff4d4f' : (d.battery < 50 ? '#faad14' : '#52c41a');
+                return `<div class="c3-item">
+                    <span class="c3-item-name">${d.name}</span>
+                    <div class="c3-item-battery">
+                        <span style="color:${color};font-weight:600">${d.battery}%</span>
+                        <div class="c3-mini-bar"><div class="c3-mini-fill" style="width:${d.battery}%;background:${color}"></div></div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+        
+        let powerChart;
+        function initCharts() {
+            const ctx = document.getElementById('power-chart');
+            if(ctx) {
+                powerChart = new Chart(ctx.getContext('2d'), {
+                    type: 'line',
+                    data: { labels: [], datasets: [
+                        { label: '光伏', data: [], borderColor: '#ff9500', backgroundColor: 'rgba(255,149,0,0.1)', fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2 },
+                        { label: '负荷', data: [], borderColor: '#ff6b6b', backgroundColor: 'rgba(255,107,107,0.1)', fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2 }
+                    ]},
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false } } }
+                });
+            }
+        }
+        
+        function connectWS() {
+            try {
+                const ws = new WebSocket(`ws://${location.host}/api/ws/realtime`);
+                ws.onmessage = (e) => {
+                    const d = JSON.parse(e.data);
+                    document.getElementById('pv-power').textContent = d.solar_power.toFixed(0) + ' kW';
+                    document.getElementById('wind-power').textContent = d.wind_power.toFixed(0) + ' kW';
+                    document.getElementById('load-power').textContent = d.load_power.toFixed(0) + ' kW';
+                    document.getElementById('batt-power').textContent = Math.abs(d.battery_power).toFixed(0) + ' kW';
+                    document.getElementById('batt-soc').textContent = (d.battery_soc * 100).toFixed(0) + '%';
+                    document.getElementById('batt-bar').style.width = (d.battery_soc * 100) + '%';
+                    document.getElementById('grid-power').textContent = d.grid_power.toFixed(0) + ' kW';
+                    document.getElementById('stat-solar').textContent = Math.round(d.solar_power);
+                    document.getElementById('stat-wind').textContent = Math.round(d.wind_power);
+                    document.getElementById('stat-soc').textContent = Math.round(d.battery_soc * 100);
+                    document.getElementById('stat-load').textContent = Math.round(d.load_power);
+                    document.getElementById('stat-grid').textContent = Math.round(d.grid_power);
+                    
+                    // 更新对象数据
+                    objectData['储能电站'].soc = Math.round(d.battery_soc * 100);
+                    
+                    if(powerChart) {
+                        const now = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+                        powerChart.data.labels.push(now);
+                        powerChart.data.datasets[0].data.push(d.solar_power);
+                        powerChart.data.datasets[1].data.push(d.load_power);
+                        if(powerChart.data.labels.length > 15) {
+                            powerChart.data.labels.shift();
+                            powerChart.data.datasets.forEach(ds => ds.data.shift());
+                        }
+                        powerChart.update('none');
+                    }
+                };
+                ws.onclose = () => setTimeout(connectWS, 3000);
+            } catch(e) { setTimeout(connectWS, 3000); }
+        }
+        
+        init3D();
+        initCharts();
+        connectWS();
+        renderC3List(c3Devices.phones, 'phone-list');
+        renderC3List(c3Devices.tablets, 'tablet-list');
+        renderC3List(c3Devices.laptops, 'laptop-list');
+        renderC3List(c3Devices.watches, 'watch-list');
+    </script>
+</body>
+</html>

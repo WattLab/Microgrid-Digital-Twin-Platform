@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电力交易 - 瓦特微电网数字孪生仿真平台</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary: #c9a86c; --primary-light: #e8d5a3;
+            --blue: #4dabff; --green: #52c41a; --orange: #ffb347;
+            --red: #ff8787; --purple: #b197fc; --cyan: #00d4ff;
+            --bg-white: #1a1a2e; --bg-light: #12121f; --bg-gray: #0f0f1a;
+            --text-dark: #ffffff; --text-secondary: rgba(255,255,255,0.7); --text-muted: rgba(255,255,255,0.45);
+            --border: rgba(201, 168, 108, 0.12); --shadow: 0 4px 24px rgba(0,0,0,0.35);
+        }
+        body { 
+            font-family: 'Noto Sans SC', sans-serif; 
+            background: linear-gradient(180deg, #0a0a12 0%, #0f0f1a 50%, #12121f 100%);
+            background-attachment: fixed;
+            color: var(--text-dark); 
+            min-height: 100vh; 
+        }
+        
+        /* 滚动条美化 */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
+        ::-webkit-scrollbar-thumb { background: rgba(201, 168, 108, 0.3); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(201, 168, 108, 0.5); }
+        
+        /* 主内容区域 */
+        .main-content { padding: 84px 24px 24px; max-width: 1600px; margin: 0 auto; }
+        
+        /* 市场选择TAB - 高级感设计 */
+        .market-tabs {
+            display: flex; gap: 6px; margin-bottom: 28px;
+            background: rgba(255,255,255,0.03); padding: 6px 8px; border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .market-tab {
+            flex: 1; padding: 16px 24px; border: none; border-radius: 10px;
+            background: transparent; color: rgba(255,255,255,0.5);
+            font-family: inherit; font-size: 15px; font-weight: 500;
+            cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            letter-spacing: 0.3px;
+        }
+        .market-tab:hover { color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.05); }
+        .market-tab.active {
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            color: #1a1a2e; font-weight: 600;
+            box-shadow: 0 4px 16px rgba(201, 168, 108, 0.35);
+        }
+        .market-tab-icon { font-size: 20px; margin-right: 8px; }
+        
+        /* 概览卡片 */
+        .overview-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 28px; }
+        .overview-card {
+            background: linear-gradient(145deg, rgba(26, 26, 46, 0.9), rgba(18, 18, 31, 0.95));
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(201, 168, 108, 0.08);
+            border-radius: 14px; padding: 22px; text-align: center;
+            position: relative; transition: all 0.3s;
+        }
+        .overview-card:hover { box-shadow: var(--shadow); transform: translateY(-3px); border-color: rgba(201, 168, 108, 0.15); }
+        .overview-card::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0;
+            height: 3px; background: linear-gradient(90deg, transparent, var(--blue), transparent); border-radius: 14px 14px 0 0;
+        }
+        .overview-card.green::before { background: linear-gradient(90deg, transparent, var(--green), transparent); }
+        .overview-card.orange::before { background: linear-gradient(90deg, transparent, var(--orange), transparent); }
+        .overview-card.red::before { background: linear-gradient(90deg, transparent, var(--red), transparent); }
+        .overview-card.purple::before { background: linear-gradient(90deg, transparent, var(--purple), transparent); }
+        .overview-icon { font-size: 24px; margin-bottom: 8px; }
+        .overview-value { font-size: 28px; font-weight: 700; color: var(--blue); }
+        .overview-card.green .overview-value { color: var(--green); }
+        .overview-card.orange .overview-value { color: var(--orange); }
+        .overview-card.red .overview-value { color: var(--red); }
+        .overview-card.purple .overview-value { color: var(--purple); }
+        .overview-label { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+        
+        /* 主要区域网格 */
+        .main-grid { display: grid; grid-template-columns: 320px 1fr; gap: 20px; }
+        
+        .panel {
+            background: linear-gradient(145deg, rgba(26, 26, 46, 0.9), rgba(18, 18, 31, 0.95));
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(201, 168, 108, 0.08);
+            border-radius: 16px; overflow: hidden; box-shadow: var(--shadow);
+        }
+        .panel-header {
+            background: rgba(255,255,255,0.03); padding: 18px 22px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .panel-title {
+            font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 10px;
+            color: #fff;
+        }
+        .panel-title::before {
+            content: ''; width: 4px; height: 18px;
+            background: linear-gradient(180deg, var(--primary), var(--primary-light)); border-radius: 2px;
+        }
+        .panel-content { padding: 22px; }
+        
+        /* 策略选择 */
+        .strategy-section { margin-bottom: 22px; }
+        .section-label { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 14px; }
+        .strategy-cards { display: flex; flex-direction: column; gap: 14px; }
+        .strategy-card {
+            padding: 18px; border: 1px solid rgba(255,255,255,0.06); border-radius: 12px;
+            cursor: pointer; transition: all 0.25s; position: relative;
+            background: rgba(255,255,255,0.02);
+        }
+        .strategy-card:hover { border-color: var(--primary); background: rgba(201, 168, 108, 0.05); }
+        .strategy-card.active { border-color: var(--primary); background: rgba(201, 168, 108, 0.1); }
+        .strategy-card.conservative { border-left: 4px solid var(--blue); }
+        .strategy-card.balanced { border-left: 4px solid var(--green); }
+        .strategy-card.aggressive { border-left: 4px solid var(--red); }
+        .strategy-name { font-size: 14px; font-weight: 600; margin-bottom: 6px; color: #fff; }
+        .strategy-desc { font-size: 12px; color: var(--text-muted); }
+        .strategy-badge {
+            position: absolute; top: 14px; right: 14px;
+            padding: 4px 10px; border-radius: 12px; font-size: 10px; font-weight: 600;
+        }
+        .strategy-card.conservative .strategy-badge { background: rgba(24,144,255,0.1); color: var(--blue); }
+        .strategy-card.balanced .strategy-badge { background: rgba(0,168,84,0.1); color: var(--green); }
+        .strategy-card.aggressive .strategy-badge { background: rgba(255,77,79,0.1); color: var(--red); }
+        
+        /* 参数设置 */
+        .param-group { margin-bottom: 16px; }
+        .param-label { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+        .param-input {
+            width: 100%; padding: 10px 14px; border: 1px solid var(--border);
+            border-radius: 8px; font-size: 14px; transition: all 0.2s;
+        }
+        .param-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(255,107,0,0.1); }
+        .param-slider { width: 100%; margin-top: 8px; }
+        
+        /* 执行按钮 */
+        .action-buttons { display: flex; flex-direction: column; gap: 12px; margin-top: 20px; }
+        .btn {
+            padding: 14px 20px; border: none; border-radius: 10px;
+            font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .btn-buy {
+            background: linear-gradient(135deg, var(--green), #52c41a);
+            color: #fff; box-shadow: 0 4px 12px rgba(0,168,84,0.3);
+        }
+        .btn-buy:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,168,84,0.4); }
+        .btn-sell {
+            background: linear-gradient(135deg, var(--red), #ff7875);
+            color: #fff; box-shadow: 0 4px 12px rgba(255,77,79,0.3);
+        }
+        .btn-sell:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(255,77,79,0.4); }
+        .btn-auto {
+            background: linear-gradient(135deg, var(--primary), var(--primary-light));
+            color: #fff; box-shadow: 0 4px 12px rgba(255,107,0,0.3);
+        }
+        .btn-auto:hover { transform: translateY(-2px); }
+        .btn-secondary { background: var(--bg-gray); color: var(--text-dark); border: 1px solid var(--border); }
+        .btn-secondary:hover { border-color: var(--primary); color: var(--primary); }
+        
+        /* 图表区域 */
+        .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .chart-card { background: var(--bg-white); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+        .chart-title { font-size: 14px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+        .chart-container { height: 280px; position: relative; }
+        
+        /* 交易记录表格 */
+        .table-container { margin-top: 20px; }
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th, .data-table td {
+            padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border);
+            font-size: 13px;
+        }
+        .data-table th { background: var(--bg-gray); font-weight: 600; color: var(--text-secondary); }
+        .data-table tr:hover { background: var(--bg-light); }
+        .status-tag {
+            display: inline-flex; padding: 4px 10px; border-radius: 12px;
+            font-size: 11px; font-weight: 600;
+        }
+        .status-tag.buy { background: rgba(0,168,84,0.1); color: var(--green); }
+        .status-tag.sell { background: rgba(255,77,79,0.1); color: var(--red); }
+        .status-tag.pending { background: rgba(255,149,0,0.1); color: var(--orange); }
+        .status-tag.completed { background: rgba(24,144,255,0.1); color: var(--blue); }
+        
+        /* 市场内容切换 */
+        .market-content { display: none; }
+        .market-content.active { display: block; }
+        
+        /* 电价时段指示 */
+        .price-indicator {
+            display: flex; gap: 16px; margin-bottom: 20px; padding: 16px;
+            background: var(--bg-light); border-radius: 12px;
+        }
+        .price-period {
+            flex: 1; padding: 12px; background: var(--bg-white);
+            border-radius: 8px; text-align: center;
+        }
+        .price-period.active { border: 2px solid var(--primary); }
+        .period-name { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+        .period-price { font-size: 18px; font-weight: 700; }
+        .period-time { font-size: 10px; color: var(--text-muted); margin-top: 4px; }
+        
+        /* 算法模块 */
+        .algorithm-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 20px; }
+        .algorithm-card {
+            padding: 20px; border: 1px solid var(--border); border-radius: 12px;
+            background: var(--bg-white); cursor: pointer; transition: all 0.2s;
+        }
+        .algorithm-card:hover { box-shadow: var(--shadow); }
+        .algorithm-card.active { border-color: var(--primary); background: rgba(255,107,0,0.05); }
+        .algo-icon { font-size: 32px; margin-bottom: 12px; }
+        .algo-name { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+        .algo-desc { font-size: 12px; color: var(--text-muted); }
+        .algo-metrics { margin-top: 12px; display: flex; gap: 12px; }
+        .algo-metric { font-size: 11px; }
+        .algo-metric span { font-weight: 600; }
+        
+        /* 预测区域 */
+        .prediction-panel {
+            background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+            border: 1px solid #bae6fd; border-radius: 12px; padding: 20px; margin-top: 20px;
+        }
+        .prediction-title { font-size: 14px; font-weight: 600; color: var(--blue); margin-bottom: 12px; }
+        .prediction-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+        .prediction-item { text-align: center; }
+        .prediction-value { font-size: 20px; font-weight: 700; color: var(--text-dark); }
+        .prediction-label { font-size: 11px; color: var(--text-muted); }
+        
+        @media (max-width: 1200px) {
+            .overview-grid { grid-template-columns: repeat(3, 1fr); }
+            .main-grid { grid-template-columns: 1fr; }
+            .charts-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">
+            <div class="logo-icon">W</div>
+            <div class="logo-text">瓦特<span>微电网</span></div>
+        </div>
+        <ul class="nav-links">
+            <li><a href="/">首页</a></li>
+            <li><a href="/dashboard">仪表盘</a></li>
+            <li><a href="/visualization">3D可视化</a></li>
+            <li><a href="/storage">储能详情</a></li>
+            <li><a href="/trading" class="active">电力交易</a></li>
+            <li><a href="/agent">瓦特智能体</a></li>
+            <li><a href="/opendata">开源数据</a></li>
+        </ul>
+        <div class="status-indicator">
+            <span class="status-dot online"></span>
+            <span>系统在线</span>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <!-- 市场TAB选择 -->
+        <div class="market-tabs">
+            <button class="market-tab active" onclick="switchMarket('mid-long')">
+                <span class="market-tab-icon">📅</span>中长期交易
+            </button>
+            <button class="market-tab" onclick="switchMarket('day-ahead')">
+                <span class="market-tab-icon">📊</span>日前交易
+            </button>
+            <button class="market-tab" onclick="switchMarket('intraday')">
+                <span class="market-tab-icon">⚡</span>日内交易
+            </button>
+            <button class="market-tab" onclick="switchMarket('realtime')">
+                <span class="market-tab-icon">🔄</span>实时交易
+            </button>
+        </div>
+
+        <!-- 概览卡片 -->
+        <div class="overview-grid">
+            <div class="overview-card green">
+                <div class="overview-icon">💰</div>
+                <div class="overview-value" id="total-revenue">12,580</div>
+                <div class="overview-label">本月收益 (元)</div>
+            </div>
+            <div class="overview-card">
+                <div class="overview-icon">📈</div>
+                <div class="overview-value" id="buy-volume">8,450</div>
+                <div class="overview-label">购电量 (kWh)</div>
+            </div>
+            <div class="overview-card orange">
+                <div class="overview-icon">📉</div>
+                <div class="overview-value" id="sell-volume">5,230</div>
+                <div class="overview-label">售电量 (kWh)</div>
+            </div>
+            <div class="overview-card purple">
+                <div class="overview-icon">⚖️</div>
+                <div class="overview-value" id="avg-price">0.68</div>
+                <div class="overview-label">平均电价 (元/kWh)</div>
+            </div>
+            <div class="overview-card red">
+                <div class="overview-icon">🎯</div>
+                <div class="overview-value" id="accuracy">94.5%</div>
+                <div class="overview-label">预测准确率</div>
+            </div>
+        </div>
+
+        <!-- 中长期交易 -->
+        <div class="market-content active" id="market-mid-long">
+            <div class="main-grid">
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">交易策略配置</div>
+                    </div>
+                    <div class="panel-content">
+                        <div class="strategy-section">
+                            <div class="section-label">选择交易策略</div>
+                            <div class="strategy-cards">
+                                <div class="strategy-card conservative" onclick="selectStrategy('conservative', this)">
+                                    <div class="strategy-name">🛡️ 稳健策略</div>
+                                    <div class="strategy-desc">低风险、稳定收益，适合风险厌恶型用户</div>
+                                    <span class="strategy-badge">风险低</span>
+                                </div>
+                                <div class="strategy-card balanced active" onclick="selectStrategy('balanced', this)">
+                                    <div class="strategy-name">⚖️ 平衡策略</div>
+                                    <div class="strategy-desc">风险收益平衡，兼顾稳定性与收益</div>
+                                    <span class="strategy-badge">推荐</span>
+                                </div>
+                                <div class="strategy-card aggressive" onclick="selectStrategy('aggressive', this)">
+                                    <div class="strategy-name">🚀 激进策略</div>
+                                    <div class="strategy-desc">高风险高收益，适合风险偏好型用户</div>
+                                    <span class="strategy-badge">风险高</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="param-group">
+                            <div class="param-label">合同电量 (MWh/月)</div>
+                            <input type="number" class="param-input" id="contract-volume" value="500">
+                        </div>
+                        <div class="param-group">
+                            <div class="param-label">价格上限 (元/kWh)</div>
+                            <input type="number" class="param-input" id="price-cap" value="0.85" step="0.01">
+                        </div>
+                        <div class="param-group">
+                            <div class="param-label">价格下限 (元/kWh)</div>
+                            <input type="number" class="param-input" id="price-floor" value="0.35" step="0.01">
+                        </div>
+                        <div class="param-group">
+                            <div class="param-label">风险承受度</div>
+                            <input type="range" class="param-slider" id="risk-tolerance" min="0" max="100" value="50">
+                            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);">
+                                <span>保守</span><span>激进</span>
+                            </div>
+                        </div>
+                        
+                        <div class="action-buttons">
+                            <button class="btn btn-buy" onclick="executeTrade('buy')">
+                                <span>📥</span> 签订购电合同
+                            </button>
+                            <button class="btn btn-sell" onclick="executeTrade('sell')">
+                                <span>📤</span> 签订售电合同
+                            </button>
+                            <button class="btn btn-auto" onclick="autoTrade()">
+                                <span>🤖</span> 智能自动交易
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="display:flex;flex-direction:column;gap:20px;">
+                    <!-- 算法模块 -->
+                    <div class="panel">
+                        <div class="panel-header">
+                            <div class="panel-title">交易算法模块</div>
+                            <span style="font-size:12px;color:var(--text-muted);">点击选择算法</span>
+                        </div>
+                        <div class="panel-content">
+                            <div class="algorithm-grid">
+                                <div class="algorithm-card active" onclick="selectAlgorithm('lr', this)">
+                                    <div class="algo-icon">📈</div>
+                                    <div class="algo-name">线性回归预测</div>
+                                    <div class="algo-desc">基于历史数据的线性趋势分析</div>
+                                    <div class="algo-metrics">
+                                        <div class="algo-metric">准确率: <span style="color:var(--green)">92%</span></div>
+                                        <div class="algo-metric">速度: <span style="color:var(--blue)">快</span></div>
+                                    </div>
+                                </div>
+                                <div class="algorithm-card" onclick="selectAlgorithm('lstm', this)">
+                                    <div class="algo-icon">🧠</div>
+                                    <div class="algo-name">LSTM深度学习</div>
+                                    <div class="algo-desc">长短期记忆网络预测模型</div>
+                                    <div class="algo-metrics">
+                                        <div class="algo-metric">准确率: <span style="color:var(--green)">96%</span></div>
+                                        <div class="algo-metric">速度: <span style="color:var(--orange)">中</span></div>
+                                    </div>
+                                </div>
+                                <div class="algorithm-card" onclick="selectAlgorithm('rl', this)">
+                                    <div class="algo-icon">🎮</div>
+                                    <div class="algo-name">强化学习优化</div>
+                                    <div class="algo-desc">基于Q-Learning的决策优化</div>
+                                    <div class="algo-metrics">
+                                        <div class="algo-metric">准确率: <span style="color:var(--green)">94%</span></div>
+                                        <div class="algo-metric">速度: <span style="color:var(--red)">慢</span></div>
+                                    </div>
+                                </div>
+                                <div class="algorithm-card" onclick="selectAlgorithm('arima', this)">
+                                    <div class="algo-icon">📊</div>
+                                    <div class="algo-name">ARIMA时序</div>
+                                    <div class="algo-desc">自回归积分滑动平均模型</div>
+                                    <div class="algo-metrics">
+                                        <div class="algo-metric">准确率: <span style="color:var(--green)">90%</span></div>
+                                        <div class="algo-metric">速度: <span style="color:var(--blue)">快</span></div>
+                                    </div>
+                                </div>
+                                <div class="algorithm-card" onclick="selectAlgorithm('ga', this)">
+                                    <div class="algo-icon">🧬</div>
+                                    <div class="algo-name">遗传算法优化</div>
+                                    <div class="algo-desc">基于进化论的全局优化</div>
+                                    <div class="algo-metrics">
+                                        <div class="algo-metric">准确率: <span style="color:var(--green)">93%</span></div>
+                                        <div class="algo-metric">速度: <span style="color:var(--orange)">中</span></div>
+                                    </div>
+                                </div>
+                                <div class="algorithm-card" onclick="selectAlgorithm('ensemble', this)">
+                                    <div class="algo-icon">🎯</div>
+                                    <div class="algo-name">集成学习模型</div>
+                                    <div class="algo-desc">多模型融合决策系统</div>
+                                    <div class="algo-metrics">
+                                        <div class="algo-metric">准确率: <span style="color:var(--green)">97%</span></div>
+                                        <div class="algo-metric">速度: <span style="color:var(--red)">慢</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 价格预测 -->
+                    <div class="prediction-panel">
+                        <div class="prediction-title">📊 中长期电价预测</div>
+                        <div class="prediction-grid">
+                            <div class="prediction-item">
+                                <div class="prediction-value">0.62</div>
+                                <div class="prediction-label">下月均价预测</div>
+                            </div>
+                            <div class="prediction-item">
+                                <div class="prediction-value" style="color:var(--green)">↓3.2%</div>
+                                <div class="prediction-label">价格趋势</div>
+                            </div>
+                            <div class="prediction-item">
+                                <div class="prediction-value">0.55-0.72</div>
+                                <div class="prediction-label">置信区间</div>
+                            </div>
+                            <div class="prediction-item">
+                                <div class="prediction-value">高</div>
+                                <div class="prediction-label">交易建议</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 图表 -->
+                    <div class="charts-grid">
+                        <div class="chart-card">
+                            <div class="chart-title">📈 历史合同价格趋势</div>
+                            <div class="chart-container"><canvas id="price-trend-chart"></canvas></div>
+                        </div>
+                        <div class="chart-card">
+                            <div class="chart-title">📊 月度交易量统计</div>
+                            <div class="chart-container"><canvas id="volume-chart"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 日前交易 -->
+        <div class="market-content" id="market-day-ahead">
+            <div class="price-indicator">
+                <div class="price-period">
+                    <div class="period-name">深谷时段</div>
+                    <div class="period-price" style="color:var(--blue)">0.24</div>
+                    <div class="period-time">00:00-06:00</div>
+                </div>
+                <div class="price-period">
+                    <div class="period-name">谷时段</div>
+                    <div class="period-price" style="color:var(--cyan)">0.33</div>
+                    <div class="period-time">06:00-08:00</div>
+                </div>
+                <div class="price-period active">
+                    <div class="period-name">平时段</div>
+                    <div class="period-price" style="color:var(--orange)">0.68</div>
+                    <div class="period-time">08:00-10:00</div>
+                </div>
+                <div class="price-period">
+                    <div class="period-name">峰时段</div>
+                    <div class="period-price" style="color:var(--red)">1.05</div>
+                    <div class="period-time">10:00-14:00</div>
+                </div>
+                <div class="price-period">
+                    <div class="period-name">尖峰时段</div>
+                    <div class="period-price" style="color:var(--red)">1.25</div>
+                    <div class="period-time">18:00-22:00</div>
+                </div>
+            </div>
+            
+            <div class="main-grid">
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">日前申报配置</div>
+                    </div>
+                    <div class="panel-content">
+                        <div class="strategy-section">
+                            <div class="section-label">申报策略</div>
+                            <div class="strategy-cards">
+                                <div class="strategy-card conservative active" onclick="selectStrategy('conservative', this)">
+                                    <div class="strategy-name">🛡️ 稳健申报</div>
+                                    <div class="strategy-desc">以出清价成交为主，确保交易成功</div>
+                                    <span class="strategy-badge">成功率高</span>
+                                </div>
+                                <div class="strategy-card aggressive" onclick="selectStrategy('aggressive', this)">
+                                    <div class="strategy-name">🚀 激进申报</div>
+                                    <div class="strategy-desc">追求更优价格，可能无法全部成交</div>
+                                    <span class="strategy-badge">收益优先</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="param-group">
+                            <div class="param-label">申报电量 (kWh)</div>
+                            <input type="number" class="param-input" id="declare-volume" value="1000">
+                        </div>
+                        <div class="param-group">
+                            <div class="param-label">申报价格 (元/kWh)</div>
+                            <input type="number" class="param-input" id="declare-price" value="0.65" step="0.01">
+                        </div>
+                        <div class="param-group">
+                            <div class="param-label">申报时段</div>
+                            <select class="param-input" id="declare-period">
+                                <option value="all">全天</option>
+                                <option value="peak">峰时段 (10:00-14:00, 18:00-22:00)</option>
+                                <option value="valley">谷时段 (00:00-08:00)</option>
+                                <option value="flat">平时段 (其他时间)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="action-buttons">
+                            <button class="btn btn-buy" onclick="declareBuy()">
+                                <span>📥</span> 提交购电申报
+                            </button>
+                            <button class="btn btn-sell" onclick="declareSell()">
+                                <span>📤</span> 提交售电申报
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="display:flex;flex-direction:column;gap:20px;">
+                    <div class="charts-grid">
+                        <div class="chart-card">
+                            <div class="chart-title">📈 明日24小时电价预测</div>
+                            <div class="chart-container"><canvas id="day-ahead-price-chart"></canvas></div>
+                        </div>
+                        <div class="chart-card">
+                            <div class="chart-title">📊 明日负荷预测</div>
+                            <div class="chart-container"><canvas id="load-forecast-chart"></canvas></div>
+                        </div>
+                    </div>
+                    
+                    <!-- 交易记录 -->
+                    <div class="panel">
+                        <div class="panel-header">
+                            <div class="panel-title">日前申报记录</div>
+                            <button class="btn btn-secondary" onclick="refreshRecords()" style="padding:8px 14px;font-size:12px;">刷新</button>
+                        </div>
+                        <div class="panel-content" style="padding:0;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>申报时间</th>
+                                        <th>类型</th>
+                                        <th>电量(kWh)</th>
+                                        <th>价格(元)</th>
+                                        <th>时段</th>
+                                        <th>状态</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="day-ahead-records">
+                                    <tr>
+                                        <td>2024-01-15 09:30</td>
+                                        <td><span class="status-tag buy">购电</span></td>
+                                        <td>500</td>
+                                        <td>0.62</td>
+                                        <td>谷时段</td>
+                                        <td><span class="status-tag completed">已成交</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>2024-01-15 09:25</td>
+                                        <td><span class="status-tag sell">售电</span></td>
+                                        <td>300</td>
+                                        <td>1.08</td>
+                                        <td>峰时段</td>
+                                        <td><span class="status-tag completed">已成交</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>2024-01-15 09:20</td>
+                                        <td><span class="status-tag buy">购电</span></td>
+                                        <td>200</td>
+                                        <td>0.58</td>
+                                        <td>谷时段</td>
+                                        <td><span class="status-tag pending">待成交</span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 日内交易 -->
+        <div class="market-content" id="market-intraday">
+            <div class="main-grid">
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">日内交易配置</div>
+                    </div>
+                    <div class="panel-content">
+                        <div class="strategy-section">
+                            <div class="section-label">交易模式</div>
+                            <div class="strategy-cards">
+                                <div class="strategy-card balanced active" onclick="selectStrategy('manual', this)">
+                                    <div class="strategy-name">👤 手动交易</div>
+                                    <div class="strategy-desc">根据实时行情手动下单</div>
+                                    <span class="strategy-badge">灵活</span>
+                                </div>
+                                <div class="strategy-card conservative" onclick="selectStrategy('auto', this)">
+                                    <div class="strategy-name">🤖 自动交易</div>
+                                    <div class="strategy-desc">根据策略自动执行交易</div>
+                                    <span class="strategy-badge">省心</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="param-group">
+                            <div class="param-label">交易电量 (kWh)</div>
+                            <input type="number" class="param-input" id="intraday-volume" value="100">
+                        </div>
+                        <div class="param-group">
+                            <div class="param-label">限价 (元/kWh)</div>
+                            <input type="number" class="param-input" id="intraday-price" value="0.70" step="0.01">
+                        </div>
+                        
+                        <div style="background:var(--bg-light);padding:16px;border-radius:12px;margin:16px 0;">
+                            <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">当前实时电价</div>
+                            <div style="font-size:32px;font-weight:700;color:var(--primary);" id="realtime-price">0.72</div>
+                            <div style="font-size:11px;color:var(--green);margin-top:4px;">↓ 较5分钟前下降 0.02</div>
+                        </div>
+                        
+                        <div class="action-buttons">
+                            <button class="btn btn-buy" onclick="intradayBuy()">
+                                <span>⚡</span> 即时购电
+                            </button>
+                            <button class="btn btn-sell" onclick="intradaySell()">
+                                <span>⚡</span> 即时售电
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="display:flex;flex-direction:column;gap:20px;">
+                    <div class="chart-card">
+                        <div class="chart-title">⚡ 日内实时电价走势 (15分钟粒度)</div>
+                        <div class="chart-container" style="height:350px;"><canvas id="intraday-price-chart"></canvas></div>
+                    </div>
+                    
+                    <div class="panel">
+                        <div class="panel-header">
+                            <div class="panel-title">日内成交记录</div>
+                        </div>
+                        <div class="panel-content" style="padding:0;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>成交时间</th>
+                                        <th>类型</th>
+                                        <th>电量</th>
+                                        <th>成交价</th>
+                                        <th>金额</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="intraday-records">
+                                    <tr>
+                                        <td>14:35:22</td>
+                                        <td><span class="status-tag buy">购电</span></td>
+                                        <td>50 kWh</td>
+                                        <td>0.71</td>
+                                        <td>¥35.50</td>
+                                    </tr>
+                                    <tr>
+                                        <td>14:20:15</td>
+                                        <td><span class="status-tag sell">售电</span></td>
+                                        <td>30 kWh</td>
+                                        <td>0.73</td>
+                                        <td>¥21.90</td>
+                                    </tr>
+                                    <tr>
+                                        <td>14:05:08</td>
+                                        <td><span class="status-tag buy">购电</span></td>
+                                        <td>80 kWh</td>
+                                        <td>0.69</td>
+                                        <td>¥55.20</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 实时交易 -->
+        <div class="market-content" id="market-realtime">
+            <div style="text-align:center;padding:100px 20px;">
+                <div style="font-size:64px;margin-bottom:20px;">🚧</div>
+                <div style="font-size:24px;font-weight:600;color:var(--text-dark);margin-bottom:12px;">实时交易市场</div>
+                <div style="color:var(--text-muted);max-width:500px;margin:0 auto;">
+                    实时交易功能正在开发中，将支持秒级响应的电力现货交易，敬请期待...
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let currentStrategy = 'balanced';
+        let currentAlgorithm = 'lr';
+        let currentMarket = 'mid-long';
+        
+        // 市场切换
+        function switchMarket(market) {
+            currentMarket = market;
+            document.querySelectorAll('.market-tab').forEach(t => t.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+            document.querySelectorAll('.market-content').forEach(c => c.classList.remove('active'));
+            document.getElementById('market-' + market).classList.add('active');
+        }
+        
+        // 策略选择
+        function selectStrategy(strategy, element) {
+            currentStrategy = strategy;
+            element.parentElement.querySelectorAll('.strategy-card').forEach(c => c.classList.remove('active'));
+            element.classList.add('active');
+        }
+        
+        // 算法选择
+        function selectAlgorithm(algo, element) {
+            currentAlgorithm = algo;
+            document.querySelectorAll('.algorithm-card').forEach(c => c.classList.remove('active'));
+            element.classList.add('active');
+        }
+        
+        // 执行交易
+        async function executeTrade(type) {
+            const volume = document.getElementById('contract-volume').value;
+            const priceCap = document.getElementById('price-cap').value;
+            const priceFloor = document.getElementById('price-floor').value;
+            
+            alert(`${type === 'buy' ? '购电' : '售电'}合同申请已提交\n\n` +
+                  `策略: ${currentStrategy}\n` +
+                  `算法: ${currentAlgorithm}\n` +
+                  `电量: ${volume} MWh\n` +
+                  `价格区间: ${priceFloor} - ${priceCap} 元/kWh`);
+        }
+        
+        // 自动交易
+        function autoTrade() {
+            alert('智能自动交易已启动\n\n' +
+                  `当前策略: ${currentStrategy}\n` +
+                  `预测算法: ${currentAlgorithm}\n\n` +
+                  '系统将根据市场行情自动执行买卖操作');
+        }
+        
+        // 日前申报
+        function declareBuy() {
+            const volume = document.getElementById('declare-volume').value;
+            const price = document.getElementById('declare-price').value;
+            const period = document.getElementById('declare-period').value;
+            alert(`购电申报已提交\n电量: ${volume} kWh\n价格: ${price} 元/kWh\n时段: ${period}`);
+        }
+        
+        function declareSell() {
+            const volume = document.getElementById('declare-volume').value;
+            const price = document.getElementById('declare-price').value;
+            const period = document.getElementById('declare-period').value;
+            alert(`售电申报已提交\n电量: ${volume} kWh\n价格: ${price} 元/kWh\n时段: ${period}`);
+        }
+        
+        // 日内交易
+        function intradayBuy() {
+            const volume = document.getElementById('intraday-volume').value;
+            const price = document.getElementById('realtime-price').textContent;
+            alert(`即时购电成功\n电量: ${volume} kWh\n成交价: ${price} 元/kWh\n金额: ¥${(volume * parseFloat(price)).toFixed(2)}`);
+        }
+        
+        function intradaySell() {
+            const volume = document.getElementById('intraday-volume').value;
+            const price = document.getElementById('realtime-price').textContent;
+            alert(`即时售电成功\n电量: ${volume} kWh\n成交价: ${price} 元/kWh\n金额: ¥${(volume * parseFloat(price)).toFixed(2)}`);
+        }
+        
+        function refreshRecords() {
+            alert('数据已刷新');
+        }
+        
+        // 初始化图表
+        function initCharts() {
+            // 价格趋势图
+            const priceTrendCtx = document.getElementById('price-trend-chart');
+            if (priceTrendCtx) {
+                new Chart(priceTrendCtx.getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
+                        datasets: [{
+                            label: '合同均价',
+                            data: [0.58, 0.60, 0.62, 0.65, 0.68, 0.72, 0.75, 0.73, 0.70, 0.67, 0.64, 0.62],
+                            borderColor: '#1890ff',
+                            backgroundColor: 'rgba(24,144,255,0.1)',
+                            fill: true,
+                            tension: 0.4
+                        }, {
+                            label: '现货均价',
+                            data: [0.55, 0.58, 0.64, 0.70, 0.75, 0.80, 0.82, 0.78, 0.72, 0.65, 0.60, 0.58],
+                            borderColor: '#ff9500',
+                            backgroundColor: 'rgba(255,149,0,0.1)',
+                            fill: true,
+                            tension: 0.4
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } } }
+                });
+            }
+            
+            // 交易量图
+            const volumeCtx = document.getElementById('volume-chart');
+            if (volumeCtx) {
+                new Chart(volumeCtx.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: ['1月', '2月', '3月', '4月', '5月', '6月'],
+                        datasets: [{
+                            label: '购电量',
+                            data: [420, 380, 450, 520, 480, 550],
+                            backgroundColor: 'rgba(0,168,84,0.7)'
+                        }, {
+                            label: '售电量',
+                            data: [280, 320, 350, 380, 420, 400],
+                            backgroundColor: 'rgba(255,77,79,0.7)'
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' } } }
+                });
+            }
+            
+            // 日前电价预测图
+            const dayAheadCtx = document.getElementById('day-ahead-price-chart');
+            if (dayAheadCtx) {
+                const hours = Array.from({length: 24}, (_, i) => `${i}:00`);
+                new Chart(dayAheadCtx.getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: hours,
+                        datasets: [{
+                            label: '预测电价',
+                            data: [0.24, 0.24, 0.24, 0.24, 0.24, 0.24, 0.33, 0.33, 0.68, 0.68, 1.05, 1.05, 1.05, 1.05, 0.68, 0.68, 0.68, 0.68, 1.25, 1.25, 1.25, 1.25, 0.68, 0.33],
+                            borderColor: '#ff6b00',
+                            backgroundColor: 'rgba(255,107,0,0.1)',
+                            fill: true,
+                            stepped: true
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+            }
+            
+            // 负荷预测图
+            const loadCtx = document.getElementById('load-forecast-chart');
+            if (loadCtx) {
+                const hours = Array.from({length: 24}, (_, i) => `${i}:00`);
+                new Chart(loadCtx.getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: hours,
+                        datasets: [{
+                            label: '负荷预测',
+                            data: [120, 110, 100, 95, 90, 100, 150, 200, 280, 320, 350, 380, 360, 340, 320, 300, 280, 300, 350, 380, 360, 300, 220, 160],
+                            borderColor: '#722ed1',
+                            backgroundColor: 'rgba(114,46,209,0.1)',
+                            fill: true,
+                            tension: 0.4
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+            }
+            
+            // 日内实时电价图
+            const intradayCtx = document.getElementById('intraday-price-chart');
+            if (intradayCtx) {
+                const times = [];
+                const prices = [];
+                for (let h = 8; h <= 16; h++) {
+                    for (let m = 0; m < 60; m += 15) {
+                        times.push(`${h}:${m.toString().padStart(2, '0')}`);
+                        prices.push((0.65 + Math.random() * 0.15).toFixed(2));
+                    }
+                }
+                new Chart(intradayCtx.getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: times,
+                        datasets: [{
+                            label: '实时电价',
+                            data: prices,
+                            borderColor: '#13c2c2',
+                            backgroundColor: 'rgba(19,194,194,0.1)',
+                            fill: true,
+                            tension: 0.2,
+                            pointRadius: 2
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+            }
+        }
+        
+        // 更新实时电价
+        function updateRealtimePrice() {
+            const priceEl = document.getElementById('realtime-price');
+            if (priceEl) {
+                const newPrice = (0.65 + Math.random() * 0.15).toFixed(2);
+                priceEl.textContent = newPrice;
+            }
+        }
+        
+        initCharts();
+        setInterval(updateRealtimePrice, 5000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>瓦特微电网数字孪生仿真平台</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="logo">
+            <div class="logo-icon">W</div>
+            <div class="logo-text">瓦特<span>微电网</span></div>
+        </div>
+        <ul class="nav-links">
+            <li><a href="/" class="active">首页</a></li>
+            <li><a href="/dashboard">仪表盘</a></li>
+            <li><a href="/visualization">3D可视化</a></li>
+            <li><a href="/storage">储能详情</a></li>
+            <li><a href="/trading">电力交易</a></li>
+            <li><a href="/agent">瓦特智能体</a></li>
+            <li><a href="/opendata">开源数据</a></li>
+        </ul>
+        <div class="status-indicator">
+            <span class="status-dot online"></span>
+            <span>系统在线</span>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        <!-- 英雄区域 -->
+        <div class="hero-section fade-in">
+            <h1 class="hero-title">瓦特<span>微电网</span>数字孪生仿真平台</h1>
+            <p class="hero-subtitle">集成高精度仿真建模、AI智能预测、优化调度与3D可视化的新一代综合能源管理系统，助力碳中和目标实现</p>
+            <div class="hero-actions">
+                <button class="btn btn-primary" onclick="location.href='/visualization'">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path d="M9 12l2 2 4-4"/></svg>
+                    进入3D可视化
+                </button>
+                <button class="btn btn-secondary" onclick="location.href='/dashboard'">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                    运营仪表盘
+                </button>
+            </div>
+        </div>
+
+        <!-- 实时统计 -->
+        <div class="stat-grid fade-in" style="animation-delay: 0.1s;">
+            <div class="stat-item">
+                <div class="stat-value solar" id="stat-solar">0<span class="stat-unit">kW</span></div>
+                <div class="stat-label">☀️ 光伏发电</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value wind" id="stat-wind">0<span class="stat-unit">kW</span></div>
+                <div class="stat-label">💨 风力发电</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value battery" id="stat-soc">50<span class="stat-unit">%</span></div>
+                <div class="stat-label">🔋 储能SOC</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value load" id="stat-load">0<span class="stat-unit">kW</span></div>
+                <div class="stat-label">🏭 负荷功率</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value grid" id="stat-grid">0<span class="stat-unit">kW</span></div>
+                <div class="stat-label">🔌 电网交换</div>
+            </div>
+        </div>
+
+        <!-- 功能卡片 -->
+        <div class="grid-4" style="margin-bottom: 32px;">
+            <div class="feature-card fade-in" style="animation-delay: 0.15s;">
+                <div class="feature-icon">🔄</div>
+                <div class="feature-title">高精度仿真引擎</div>
+                <div class="feature-desc">支持光伏、风电、储能、柴油机等多种分布式能源设备的精确建模与仿真</div>
+                <button class="btn btn-secondary" onclick="startQuickSimulation()">快速仿真</button>
+            </div>
+            <div class="feature-card fade-in" style="animation-delay: 0.2s;">
+                <div class="feature-icon">📊</div>
+                <div class="feature-title">全量数据管理</div>
+                <div class="feature-desc">实时采集与存储运行数据，支持历史数据分析、报表导出与可视化展示</div>
+                <button class="btn btn-secondary" onclick="location.href='/dashboard'">查看数据</button>
+            </div>
+            <div class="feature-card fade-in" style="animation-delay: 0.25s;">
+                <div class="feature-icon">🎯</div>
+                <div class="feature-title">智能模型标定</div>
+                <div class="feature-desc">基于实际运行数据自动标定仿真模型参数，持续提升仿真精度与可靠性</div>
+                <button class="btn btn-secondary" onclick="location.href='/dashboard'">开始标定</button>
+            </div>
+            <div class="feature-card fade-in" style="animation-delay: 0.3s;">
+                <div class="feature-icon">⚡</div>
+                <div class="feature-title">经济调度优化</div>
+                <div class="feature-desc">结合电价预测与负荷预测，实现峰谷套利与经济调度，显著降低用能成本</div>
+                <button class="btn btn-secondary" onclick="runOptimization()">运行优化</button>
+            </div>
+        </div>
+
+        <!-- 实时数据区域 -->
+        <div class="grid-2">
+            <div class="card fade-in" style="animation-delay: 0.35s;">
+                <div class="card-title">📈 系统实时状态</div>
+                <div class="data-panel">
+                    <div class="data-row" style="border-color: var(--solar);">
+                        <span class="data-label">☀️ 光伏出力</span>
+                        <span class="data-value solar" id="solar-power">0.00 kW</span>
+                    </div>
+                    <div class="data-row" style="border-color: var(--wind);">
+                        <span class="data-label">💨 风机出力</span>
+                        <span class="data-value wind" id="wind-power">0.00 kW</span>
+                    </div>
+                    <div class="data-row" style="border-color: var(--battery);">
+                        <span class="data-label">🔋 储能电量</span>
+                        <span class="data-value battery" id="battery-soc">50.0%</span>
+                    </div>
+                    <div class="data-row" style="border-color: var(--load);">
+                        <span class="data-label">🏭 负荷需求</span>
+                        <span class="data-value load" id="load-power">0.00 kW</span>
+                    </div>
+                    <div class="data-row" style="border-color: var(--grid);">
+                        <span class="data-label">🔌 电网交换</span>
+                        <span class="data-value grid" id="grid-power">0.00 kW</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card fade-in" style="animation-delay: 0.4s;">
+                <div class="card-title">📊 实时功率曲线</div>
+                <div class="chart-container">
+                    <canvas id="realtime-chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- 仿真配置 -->
+        <div class="card fade-in" style="animation-delay: 0.45s;">
+            <div class="card-title">⚙️ 仿真参数配置</div>
+            <div class="grid-4">
+                <div class="input-group">
+                    <label>光伏容量 (kW)</label>
+                    <input type="number" id="solar-capacity" value="100" min="0">
+                </div>
+                <div class="input-group">
+                    <label>风电容量 (kW)</label>
+                    <input type="number" id="wind-capacity" value="50" min="0">
+                </div>
+                <div class="input-group">
+                    <label>电池容量 (kWh)</label>
+                    <input type="number" id="battery-capacity" value="500" min="0">
+                </div>
+                <div class="input-group">
+                    <label>基础负荷 (kW)</label>
+                    <input type="number" id="base-load" value="80" min="0">
+                </div>
+            </div>
+            <div style="display: flex; gap: 16px; margin-top: 8px;">
+                <button class="btn btn-primary" onclick="startSimulation()">开始仿真</button>
+                <button class="btn btn-secondary" onclick="resetParameters()">重置参数</button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // 图表配置
+        const ctx = document.getElementById('realtime-chart').getContext('2d');
+        const realtimeChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    { label: '光伏', data: [], borderColor: '#ff9500', backgroundColor: 'rgba(255,149,0,0.1)', tension: 0.4, fill: true, pointRadius: 0, borderWidth: 2 },
+                    { label: '风电', data: [], borderColor: '#00b578', backgroundColor: 'rgba(0,181,120,0.1)', tension: 0.4, fill: true, pointRadius: 0, borderWidth: 2 },
+                    { label: '负荷', data: [], borderColor: '#ff6b6b', backgroundColor: 'rgba(255,107,107,0.1)', tension: 0.4, fill: true, pointRadius: 0, borderWidth: 2 }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { 
+                    legend: { 
+                        labels: { 
+                            color: '#666666', 
+                            font: { size: 12, family: 'Noto Sans SC' },
+                            usePointStyle: true
+                        } 
+                    } 
+                },
+                scales: {
+                    x: { 
+                        ticks: { color: '#999999', font: { size: 11 } }, 
+                        grid: { color: 'rgba(0,0,0,0.05)' } 
+                    },
+                    y: { 
+                        ticks: { color: '#999999', font: { size: 11 } }, 
+                        grid: { color: 'rgba(0,0,0,0.05)' } 
+                    }
+                }
+            }
+        });
+
+        // WebSocket
+        let ws = null;
+        function connectWebSocket() {
+            try {
+                ws = new WebSocket(`ws://${location.host}/api/ws/realtime`);
+                ws.onmessage = function(event) {
+                    const data = JSON.parse(event.data);
+                    updateDisplay(data);
+                };
+                ws.onclose = function() { setTimeout(connectWebSocket, 3000); };
+                ws.onerror = function() {};
+            } catch (e) {
+                setTimeout(connectWebSocket, 3000);
+            }
+        }
+
+        let dataPointCounter = 0;
+        let lastUpdateTime = 0;
+        
+        function updateDisplay(data) {
+            document.getElementById('solar-power').textContent = data.solar_power.toFixed(2) + ' kW';
+            document.getElementById('wind-power').textContent = data.wind_power.toFixed(2) + ' kW';
+            document.getElementById('battery-soc').textContent = (data.battery_soc * 100).toFixed(1) + '%';
+            document.getElementById('load-power').textContent = data.load_power.toFixed(2) + ' kW';
+            document.getElementById('grid-power').textContent = data.grid_power.toFixed(2) + ' kW';
+
+            document.getElementById('stat-solar').innerHTML = data.solar_power.toFixed(0) + '<span class="stat-unit">kW</span>';
+            document.getElementById('stat-wind').innerHTML = data.wind_power.toFixed(0) + '<span class="stat-unit">kW</span>';
+            document.getElementById('stat-soc').innerHTML = (data.battery_soc * 100).toFixed(0) + '<span class="stat-unit">%</span>';
+            document.getElementById('stat-load').innerHTML = data.load_power.toFixed(0) + '<span class="stat-unit">kW</span>';
+            document.getElementById('stat-grid').innerHTML = data.grid_power.toFixed(0) + '<span class="stat-unit">kW</span>';
+
+            // 确保每次更新都有唯一的时间戳（至少间隔1秒）
+            const now = Date.now();
+            if (now - lastUpdateTime < 1000) return;
+            lastUpdateTime = now;
+            
+            const date = new Date(now);
+            const timeStr = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            
+            realtimeChart.data.labels.push(timeStr);
+            realtimeChart.data.datasets[0].data.push(data.solar_power);
+            realtimeChart.data.datasets[1].data.push(data.wind_power);
+            realtimeChart.data.datasets[2].data.push(data.load_power);
+
+            if (realtimeChart.data.labels.length > 20) {
+                realtimeChart.data.labels.shift();
+                realtimeChart.data.datasets.forEach(ds => ds.data.shift());
+            }
+            realtimeChart.update('none');
+        }
+
+        async function startQuickSimulation() {
+            const response = await fetch('/api/simulation/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: '快速仿真', duration_hours: 24 })
+            });
+            const result = await response.json();
+            alert('仿真完成！数据已保存。');
+        }
+
+        async function startSimulation() {
+            const params = {
+                name: '自定义仿真',
+                duration_hours: 24,
+                solar_capacity: parseFloat(document.getElementById('solar-capacity').value),
+                wind_capacity: parseFloat(document.getElementById('wind-capacity').value),
+                battery_capacity: parseFloat(document.getElementById('battery-capacity').value),
+                base_load: parseFloat(document.getElementById('base-load').value)
+            };
+            const response = await fetch('/api/simulation/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(params)
+            });
+            alert('仿真完成！');
+        }
+
+        async function runOptimization() {
+            const response = await fetch('/api/optimization/dispatch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const result = await response.json();
+            alert(`优化完成！总成本: ${result.total_cost} 元`);
+        }
+
+        function resetParameters() {
+            document.getElementById('solar-capacity').value = 100;
+            document.getElementById('wind-capacity').value = 50;
+            document.getElementById('battery-capacity').value = 500;
+            document.getElementById('base-load').value = 80;
+        }
+
+        connectWebSocket();
+    </script>
+</body>
+</html>

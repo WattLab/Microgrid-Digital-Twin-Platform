@@ -1,0 +1,2511 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>储能电站 - 瓦特微电网数字孪生仿真平台</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        :root {
+            --primary: #c9a86c;
+            --primary-light: #e8d5a3;
+            --blue: #4dabff;
+            --green: #52c41a;
+            --orange: #ffb347;
+            --red: #ff8787;
+            --purple: #b197fc;
+            --bg-white: #1a1a2e;
+            --bg-light: #12121f;
+            --bg-gray: #0f0f1a;
+            --text-dark: #ffffff;
+            --text-secondary: rgba(255,255,255,0.7);
+            --text-muted: rgba(255,255,255,0.45);
+            --border: rgba(201, 168, 108, 0.12);
+            --shadow: 0 4px 24px rgba(0,0,0,0.35);
+        }
+        
+        body {
+            font-family: 'Noto Sans SC', -apple-system, sans-serif;
+            background: linear-gradient(180deg, #0a0a12 0%, #0f0f1a 50%, #12121f 100%);
+            background-attachment: fixed;
+            color: var(--text-dark);
+            min-height: 100vh;
+        }
+        
+        /* 滚动条美化 */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: rgba(255,255,255,0.02); }
+        ::-webkit-scrollbar-thumb { background: rgba(201, 168, 108, 0.3); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(201, 168, 108, 0.5); }
+        
+        /* 页面特定样式 - header-stats */
+        .header-stats {
+            display: flex;
+            gap: 36px;
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 99;
+            background: rgba(26, 26, 46, 0.9);
+            backdrop-filter: blur(10px);
+            padding: 12px 24px;
+            border-radius: 12px;
+            border: 1px solid rgba(201, 168, 108, 0.15);
+        }
+        
+        .header-stat {
+            text-align: center;
+        }
+        
+        .header-stat-value {
+            font-size: 26px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        
+        .header-stat-label {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+        
+        /* 主内容 */
+        .main-content {
+            padding: 84px 24px 24px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        
+        /* 概览卡片 */
+        .overview-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+        
+        .overview-card {
+            background: linear-gradient(145deg, rgba(26, 26, 46, 0.9), rgba(18, 18, 31, 0.95));
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(201, 168, 108, 0.08);
+            border-radius: 14px;
+            padding: 22px;
+            text-align: center;
+            position: relative;
+            transition: all 0.3s;
+        }
+        
+        .overview-card:hover {
+            box-shadow: var(--shadow);
+            transform: translateY(-2px);
+        }
+        
+        .overview-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--blue);
+            border-radius: 12px 12px 0 0;
+        }
+        
+        .overview-card.orange::before { background: var(--orange); }
+        .overview-card.green::before { background: var(--green); }
+        .overview-card.purple::before { background: var(--purple); }
+        .overview-card.red::before { background: var(--red); }
+        
+        .overview-icon {
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+        
+        .overview-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--blue);
+        }
+        
+        .overview-card.orange .overview-value { color: var(--orange); }
+        .overview-card.green .overview-value { color: var(--green); }
+        .overview-card.purple .overview-value { color: var(--purple); }
+        .overview-card.red .overview-value { color: var(--red); }
+        
+        .overview-label {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+        
+        /* ========== 储能系统架构图 ========== */
+        .architecture-section {
+            background: linear-gradient(145deg, rgba(26, 26, 46, 0.95), rgba(18, 18, 31, 0.98));
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+        
+        .arch-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .arch-legend {
+            display: flex;
+            gap: 30px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            color: rgba(255,255,255,0.8);
+        }
+        
+        .legend-line-wrap {
+            width: 50px;
+            height: 4px;
+            border-radius: 2px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .legend-line-wrap.comm {
+            background: rgba(82, 196, 26, 0.3);
+        }
+        
+        .legend-line-wrap.energy {
+            background: rgba(255, 107, 107, 0.3);
+        }
+        
+        .legend-line-wrap .flow {
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            animation: legendFlow 1.5s linear infinite;
+        }
+        
+        .legend-line-wrap.comm .flow {
+            background: linear-gradient(90deg, transparent, #52c41a, #7cfc00, #52c41a, transparent);
+            filter: blur(0.5px);
+        }
+        
+        .legend-line-wrap.energy .flow {
+            background: linear-gradient(90deg, transparent, #ff6b6b, #ff4757, #ff6b6b, transparent);
+            filter: blur(0.5px);
+        }
+        
+        @keyframes legendFlow {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+        
+        /* 高端脉冲效果 */
+        .legend-line-wrap::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: inherit;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 0.8; }
+        }
+        
+        /* 架构图容器 */
+        .arch-diagram-new {
+            position: relative;
+            background: rgba(0,0,0,0.2);
+            border-radius: 12px;
+            padding: 20px 15px;
+            overflow-x: auto;
+            width: 75%;
+            margin: 0 auto;
+        }
+        
+        /* SVG连接线容器 */
+        .arch-svg-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+        
+        /* 层级容器 - 增大间距 */
+        .arch-level-row {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            z-index: 2;
+            margin-bottom: 16px;
+        }
+        
+        .arch-level-row:last-child {
+            margin-bottom: 0;
+        }
+        
+        .level-title {
+            font-size: 9px;
+            color: rgba(255,255,255,0.5);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+        
+        /* 设备节点 - 更紧凑 */
+        .arch-node {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 6px 8px;
+            background: linear-gradient(145deg, rgba(40, 40, 70, 0.9), rgba(30, 30, 55, 0.95));
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            min-width: 52px;
+        }
+        
+        .arch-node:hover {
+            background: linear-gradient(145deg, rgba(50, 50, 85, 0.95), rgba(40, 40, 65, 0.98));
+            border-color: var(--primary);
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+        }
+        
+        .arch-node.station {
+            border-left: 3px solid #722ed1;
+            background: linear-gradient(145deg, rgba(114, 46, 209, 0.15), rgba(40, 40, 70, 0.9));
+        }
+        
+        .arch-node.container {
+            border-left: 3px solid #1890ff;
+            background: linear-gradient(145deg, rgba(24, 144, 255, 0.12), rgba(40, 40, 70, 0.9));
+        }
+        
+        .arch-node.pcs {
+            border-left: 3px solid #fa8c16;
+            background: linear-gradient(145deg, rgba(250, 140, 22, 0.12), rgba(40, 40, 70, 0.9));
+        }
+        
+        .arch-node.cluster {
+            border-left: 3px solid #52c41a;
+            background: linear-gradient(145deg, rgba(82, 196, 26, 0.1), rgba(40, 40, 70, 0.9));
+        }
+        
+        .arch-node.pack {
+            border-left: 3px solid #eb2f96;
+            background: linear-gradient(145deg, rgba(235, 47, 150, 0.1), rgba(40, 40, 70, 0.9));
+        }
+        
+        .arch-node.bms {
+            border-left: 3px solid #faad14;
+            background: linear-gradient(145deg, rgba(250, 173, 20, 0.1), rgba(40, 40, 70, 0.9));
+        }
+        
+        .arch-node.dcdc {
+            border-left: 3px solid #13c2c2;
+            background: linear-gradient(145deg, rgba(19, 194, 194, 0.1), rgba(40, 40, 70, 0.9));
+        }
+        
+        .arch-node.cell {
+            border-left: 3px solid #597ef7;
+            background: linear-gradient(145deg, rgba(89, 126, 247, 0.1), rgba(40, 40, 70, 0.9));
+        }
+        
+        .arch-node.ems {
+            border-left: 3px solid #1890ff;
+            background: linear-gradient(145deg, rgba(24, 144, 255, 0.1), rgba(40, 40, 70, 0.9));
+        }
+        
+        .arch-node.scada {
+            border-left: 3px solid #52c41a;
+            background: linear-gradient(145deg, rgba(82, 196, 26, 0.1), rgba(40, 40, 70, 0.9));
+        }
+        
+        .arch-node.fire {
+            border-left: 3px solid #ff4d4f;
+            background: linear-gradient(145deg, rgba(255, 77, 79, 0.1), rgba(40, 40, 70, 0.9));
+        }
+        
+        .arch-node.thermal {
+            border-left: 3px solid #13c2c2;
+            background: linear-gradient(145deg, rgba(19, 194, 194, 0.1), rgba(40, 40, 70, 0.9));
+        }
+        
+        /* SVG图标样式 */
+        .arch-node .node-icon {
+            width: 28px;
+            height: 28px;
+            margin-bottom: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .arch-node .node-icon svg {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .arch-node .node-icon img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            border-radius: 3px;
+        }
+        
+        .arch-node .node-name {
+            font-size: 9px;
+            font-weight: 600;
+            color: #fff;
+            text-align: center;
+            white-space: nowrap;
+        }
+        
+        .arch-node .node-spec {
+            font-size: 8px;
+            color: rgba(255,255,255,0.5);
+            margin-top: 2px;
+        }
+        
+        /* 设备组 - 横向扩展间距 */
+        .node-group {
+            display: flex;
+            gap: 18px;
+            flex-wrap: wrap;
+            justify-content: center;
+            width: 100%;
+            max-width: 100%;
+        }
+        
+        /* Pack拓扑布局 - BMS-Pack-DCDC */
+        .pack-topology {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            background: rgba(0,0,0,0.15);
+            padding: 12px 28px;
+            border-radius: 8px;
+            border: 1px dashed rgba(255,255,255,0.1);
+            width: 100%;
+            max-width: 100%;
+            justify-content: space-between;
+        }
+        
+        .topo-left, .topo-right {
+            flex-shrink: 0;
+        }
+        
+        .topo-center {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+        }
+        
+        .pack-row {
+            display: flex;
+            gap: 14px;
+            justify-content: center;
+        }
+        
+        .topo-lines {
+            width: 100%;
+            height: 24px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .topo-svg {
+            width: 100%;
+            height: 100%;
+        }
+        
+        /* 高端通信线动画 - 蓝色科技感 */
+        .comm-anim {
+            stroke: url(#commGradientH);
+            stroke-width: 2.5;
+            stroke-dasharray: 0, 20, 0;
+            stroke-linecap: round;
+            animation: commFlow 3s linear infinite;
+            filter: url(#commGlow);
+        }
+        
+        @keyframes commFlow {
+            0% { stroke-dashoffset: 0; opacity: 0.4; }
+            20% { opacity: 1; }
+            80% { opacity: 1; }
+            100% { stroke-dashoffset: -40; opacity: 0.4; }
+        }
+        
+        /* 高端能量线动画 - 金色能量流 */
+        .energy-anim {
+            stroke: url(#energyGradientH);
+            stroke-width: 3.5;
+            stroke-linecap: round;
+            stroke-dasharray: 0, 30, 0;
+            animation: energyFlow 2s linear infinite reverse;
+            filter: url(#energyGlow);
+        }
+        
+        @keyframes energyFlow {
+            0% { stroke-dashoffset: 0; opacity: 0.5; }
+            15% { opacity: 1; }
+            85% { opacity: 1; }
+            100% { stroke-dashoffset: -60; opacity: 0.5; }
+        }
+        
+        /* 粒子效果容器 */
+        .particle-container {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: visible;
+        }
+        
+        .particle {
+            position: absolute;
+            width: 3px;
+            height: 3px;
+            border-radius: 50%;
+            animation: particleMove 3s linear infinite;
+        }
+        
+        .particle.comm {
+            background: radial-gradient(circle, #7cfc00, #52c41a);
+            box-shadow: 0 0 6px #52c41a;
+        }
+        
+        .particle.energy {
+            background: radial-gradient(circle, #ffd700, #ff6b6b);
+            box-shadow: 0 0 8px #ff6b6b;
+        }
+        
+        @keyframes particleMove {
+            0% { transform: translateX(0) translateY(0); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateX(100px) translateY(-20px); opacity: 0; }
+        }
+        
+        /* 连接线样式 */
+        .flow-line {
+            fill: none;
+            stroke-width: 2;
+            stroke-linecap: round;
+        }
+        
+        .flow-line.comm {
+            stroke: rgba(82, 196, 26, 0.4);
+        }
+        
+        .flow-line.energy {
+            stroke: rgba(255, 107, 107, 0.4);
+        }
+        
+        /* 流动动画 */
+        .flow-particle {
+            fill: none;
+            stroke-width: 3;
+            stroke-linecap: round;
+        }
+        
+        .flow-particle.comm {
+            stroke: #52c41a;
+            filter: drop-shadow(0 0 4px #52c41a);
+        }
+        
+        .flow-particle.energy {
+            stroke: #ff6b6b;
+            filter: drop-shadow(0 0 4px #ff6b6b);
+        }
+        
+        @keyframes flowDown {
+            0% { stroke-dashoffset: 100; }
+            100% { stroke-dashoffset: 0; }
+        }
+        
+        @keyframes flowUp {
+            0% { stroke-dashoffset: 0; }
+            100% { stroke-dashoffset: 100; }
+        }
+        
+        /* 分支连接线 */
+        .branch-container {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+        
+        .branch-lines {
+            position: relative;
+            width: 100%;
+            height: 50px;
+            margin: 10px 0;
+        }
+        
+        .branch-line-svg {
+            width: 100%;
+            height: 100%;
+        }
+        
+        /* 悬停详情 */
+        .node-tooltip {
+            position: absolute;
+            bottom: calc(100% + 10px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(145deg, rgba(20, 20, 40, 0.98), rgba(10, 10, 25, 0.98));
+            border: 1px solid rgba(201, 168, 108, 0.4);
+            border-radius: 8px;
+            padding: 10px 12px;
+            min-width: 180px;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s ease;
+            z-index: 99999;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6), 0 0 20px rgba(201, 168, 108, 0.1);
+            backdrop-filter: blur(10px);
+        }
+        
+        .arch-node:hover .node-tooltip {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(-50%) translateY(-3px);
+        }
+        
+        .node-tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-top-color: rgba(20, 20, 40, 0.98);
+        }
+        
+        /* 第一层节点tooltip向下显示 */
+        .arch-level-row[data-level="station"] .arch-node .node-tooltip {
+            bottom: auto;
+            top: calc(100% + 8px);
+        }
+        
+        .arch-level-row[data-level="station"] .arch-node .node-tooltip::after {
+            top: auto;
+            bottom: 100%;
+            border-top-color: transparent;
+            border-bottom-color: rgba(20, 20, 40, 0.98);
+        }
+        
+        .arch-level-row[data-level="station"] .arch-node:hover .node-tooltip {
+            transform: translateX(-50%) translateY(3px);
+        }
+        
+        .tooltip-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .tooltip-title .badge {
+            font-size: 9px;
+            padding: 2px 6px;
+            background: rgba(82, 196, 26, 0.2);
+            color: #52c41a;
+            border-radius: 4px;
+        }
+        
+        .tooltip-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        .tooltip-row:last-child {
+            border-bottom: none;
+        }
+        
+        .tooltip-row .label {
+            color: rgba(255,255,255,0.5);
+        }
+        
+        .tooltip-row .value {
+            color: var(--primary);
+            font-weight: 500;
+        }
+        
+        .tooltip-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 10px;
+        }
+        
+        .tooltip-tag {
+            padding: 3px 8px;
+            background: rgba(201, 168, 108, 0.12);
+            border-radius: 4px;
+            font-size: 10px;
+            color: var(--primary);
+        }
+        
+        /* 层级分隔器 */
+        .level-separator {
+            width: 100%;
+            height: 20px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 4px 0;
+        }
+        
+        .separator-label {
+            background: rgba(0,0,0,0.6);
+            padding: 4px 14px;
+            border-radius: 12px;
+            font-size: 10px;
+            color: rgba(255,255,255,0.6);
+            z-index: 3;
+        }
+        
+        /* 动态流线 */
+        .animated-line {
+            position: absolute;
+            pointer-events: none;
+        }
+        
+        .line-track {
+            stroke-opacity: 0.3;
+        }
+        
+        .line-flow {
+            stroke-dasharray: 8 12;
+            animation: dashFlow 1s linear infinite;
+        }
+        
+        @keyframes dashFlow {
+            0% { stroke-dashoffset: 20; }
+            100% { stroke-dashoffset: 0; }
+        }
+        
+        .line-flow.reverse {
+            animation-direction: reverse;
+        }
+        
+        /* 聚合方法面板 */
+        .agg-panel {
+            margin-top: 24px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255,255,255,0.08);
+        }
+        
+        .agg-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: rgba(255,255,255,0.8);
+            margin-bottom: 16px;
+        }
+        
+        .agg-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+        
+        .agg-card {
+            background: rgba(0,0,0,0.25);
+            border-radius: 10px;
+            padding: 14px;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        .agg-card .agg-icon {
+            width: 32px;
+            height: 32px;
+            margin: 0 auto 8px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        
+        .agg-card .agg-icon.soc { background: rgba(82, 196, 26, 0.15); color: #52c41a; }
+        .agg-card .agg-icon.soh { background: rgba(255, 179, 71, 0.15); color: #ffb347; }
+        .agg-card .agg-icon.temp { background: rgba(255, 107, 107, 0.15); color: #ff6b6b; }
+        .agg-card .agg-icon.status { background: rgba(77, 171, 255, 0.15); color: #4dabff; }
+        
+        .agg-card .agg-name {
+            font-size: 11px;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 3px;
+        }
+        
+        .agg-card .agg-desc {
+            font-size: 9px;
+            color: rgba(255,255,255,0.45);
+        }
+        
+        @media (max-width: 1200px) {
+            .agg-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        /* 集装箱3D展示 */
+        .containers-visual {
+            background: var(--bg-white);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: var(--shadow);
+        }
+        
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .section-title::before {
+            content: '';
+            width: 4px;
+            height: 18px;
+            background: var(--primary);
+            border-radius: 2px;
+        }
+        
+        .containers-row {
+            display: flex;
+            gap: 24px;
+            justify-content: center;
+            padding: 20px 0;
+        }
+        
+        .container-box {
+            width: 180px;
+            height: 100px;
+            background: linear-gradient(135deg, #e3f2fd 0%, #0f4169 100%);
+            border: 2px solid var(--blue);
+            border-radius: 12px;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+        
+        .container-box:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 24px rgba(24, 178, 255, 0.25);
+        }
+        
+        .container-box h4 {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--blue);
+        }
+        
+        .container-box p {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+        
+        .container-indicator {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--green);
+        }
+        
+        .container-indicator.warning { background: var(--orange); }
+        .container-indicator.fault { background: var(--red); }
+        
+        /* 拓扑区域 */
+        .topology-grid {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 20px;
+        }
+        
+        .panel {
+            background: var(--bg-white);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+        }
+        
+        .panel-header {
+            background: var(--bg-gray);
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .panel-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-dark);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .panel-title::before {
+            content: '';
+            width: 4px;
+            height: 16px;
+            background: var(--primary);
+            border-radius: 2px;
+        }
+        
+        .panel-content {
+            padding: 16px;
+            max-height: 550px;
+            overflow-y: auto;
+        }
+        
+        .panel-content::-webkit-scrollbar { width: 6px; }
+        .panel-content::-webkit-scrollbar-thumb { 
+            background: var(--border); 
+            border-radius: 3px; 
+        }
+        
+        /* 树形结构 */
+        .tree-item {
+            margin-bottom: 6px;
+        }
+        
+        .tree-node {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 14px;
+            background: var(--bg-light);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .tree-node:hover {
+            border-color: var(--primary);
+            background: rgba(255, 107, 0, 0.05);
+        }
+        
+        .tree-node.active {
+            border-color: var(--primary);
+            background: rgba(255, 107, 0, 0.1);
+        }
+        
+        .tree-node.container { border-left: 3px solid var(--blue); }
+        .tree-node.cluster { border-left: 3px solid var(--orange); margin-left: 16px; }
+        .tree-node.pack { border-left: 3px solid var(--green); margin-left: 32px; }
+        
+        .tree-icon { font-size: 16px; }
+        .tree-label { flex: 1; font-size: 13px; font-weight: 500; }
+        
+        .tree-status {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--green);
+        }
+        
+        .tree-status.warning { background: var(--orange); }
+        .tree-status.fault { background: var(--red); }
+        
+        .tree-children {
+            display: none;
+            margin-top: 6px;
+        }
+        
+        .tree-item.expanded > .tree-children {
+            display: block;
+        }
+        
+        /* 电芯矩阵 */
+        .cells-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(85px, 1fr));
+            gap: 10px;
+        }
+        
+        .cell-card {
+            background: var(--bg-light);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .cell-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border-color: var(--blue);
+        }
+        
+        .cell-card.normal { border-top: 3px solid var(--green); }
+        .cell-card.warning { border-top: 3px solid var(--orange); }
+        .cell-card.fault { border-top: 3px solid var(--red); }
+        
+        .cell-id {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+        
+        .cell-soc {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--blue);
+        }
+        
+        .cell-temp {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+        
+        /* 状态徽章 */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .status-badge.normal {
+            background: rgba(0, 168, 84, 0.12);
+            color: var(--green);
+        }
+        
+        .status-badge.warning {
+            background: rgba(255, 149, 0, 0.12);
+            color: var(--orange);
+        }
+        
+        .status-badge.fault {
+            background: rgba(255, 77, 79, 0.12);
+            color: var(--red);
+        }
+        
+        /* 弹窗 */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+        
+        .modal-overlay.active { display: flex; }
+        
+        .modal-content {
+            background: var(--bg-white);
+            border-radius: 16px;
+            width: 480px;
+            max-height: 80vh;
+            overflow: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+        }
+        
+        .modal-header {
+            background: var(--bg-gray);
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+        
+        .modal-close {
+            width: 32px;
+            height: 32px;
+            background: var(--bg-light);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .modal-close:hover {
+            background: var(--red);
+            color: #fff;
+            border-color: var(--red);
+        }
+        
+        .modal-body { padding: 20px; }
+        
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+        
+        .detail-item {
+            background: var(--bg-light);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px;
+        }
+        
+        .detail-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+        
+        .detail-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--blue);
+        }
+        
+        .detail-value.orange { color: var(--orange); }
+        .detail-value.green { color: var(--green); }
+        .detail-value.red { color: var(--red); }
+        
+        .detail-bar {
+            height: 6px;
+            background: var(--bg-gray);
+            border-radius: 3px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+        
+        .detail-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--blue), #40a9ff);
+            border-radius: 3px;
+            transition: width 0.5s;
+        }
+        
+        .alarm-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            background: rgba(255, 77, 79, 0.08);
+            border: 1px solid rgba(255, 77, 79, 0.3);
+            border-radius: 8px;
+            margin-top: 12px;
+        }
+        
+        .alarm-icon { color: var(--red); font-size: 16px; }
+        .alarm-text { font-size: 13px; color: var(--red); }
+        
+        /* 曲线图区域 */
+        .chart-section {
+            background: var(--bg-white);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            margin-top: 24px;
+            box-shadow: var(--shadow);
+        }
+        
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .chart-controls {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+        
+        .param-select {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        
+        .param-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            background: var(--bg-light);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 13px;
+        }
+        
+        .param-checkbox:hover {
+            border-color: var(--primary);
+        }
+        
+        .param-checkbox.active {
+            background: rgba(255, 107, 0, 0.1);
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+        
+        .param-checkbox input {
+            display: none;
+        }
+        
+        .param-checkbox .check-icon {
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--border);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: transparent;
+        }
+        
+        .param-checkbox.active .check-icon {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: #fff;
+        }
+        
+        .selected-cells {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+        
+        .cell-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: var(--bg-gray);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-size: 12px;
+        }
+        
+        .cell-tag .remove {
+            cursor: pointer;
+            color: var(--text-muted);
+            font-weight: bold;
+        }
+        
+        .cell-tag .remove:hover {
+            color: var(--red);
+        }
+        
+        .chart-container {
+            height: 400px;
+            position: relative;
+        }
+        
+        .chart-empty {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: var(--text-muted);
+        }
+        
+        .chart-empty-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: var(--primary);
+            color: #fff;
+        }
+        
+        .btn-primary:hover {
+            background: var(--primary-light);
+        }
+        
+        .btn-secondary {
+            background: var(--bg-gray);
+            color: var(--text-dark);
+            border: 1px solid var(--border);
+        }
+        
+        .btn-secondary:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+        
+        /* 响应式 */
+        @media (max-width: 1200px) {
+            .overview-grid { grid-template-columns: repeat(3, 1fr); }
+            .topology-grid { grid-template-columns: 1fr; }
+        }
+        
+        @media (max-width: 768px) {
+            .overview-grid { grid-template-columns: repeat(2, 1fr); }
+            .header-stats { display: none; }
+            .containers-row { flex-wrap: wrap; }
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="logo">
+            <div class="logo-icon">W</div>
+            <div class="logo-text">瓦特<span>微电网</span></div>
+        </div>
+        
+        <ul class="nav-links">
+            <li><a href="/">首页</a></li>
+            <li><a href="/dashboard">仪表盘</a></li>
+            <li><a href="/visualization">3D可视化</a></li>
+            <li><a href="/storage" class="active">储能详情</a></li>
+            <li><a href="/trading">电力交易</a></li>
+            <li><a href="/agent">瓦特智能体</a></li>
+            <li><a href="/opendata">开源数据</a></li>
+        </ul>
+        
+        <div class="status-indicator">
+            <span class="status-dot online"></span>
+            <span>系统在线</span>
+        </div>
+    </nav>
+    
+    <!-- 主内容 -->
+    <main class="main-content">
+        <!-- 概览卡片 -->
+        <section class="overview-grid">
+            <div class="overview-card">
+                <div class="overview-icon">📦</div>
+                <div class="overview-value" id="containers-count">0</div>
+                <div class="overview-label">储能集装箱</div>
+            </div>
+            <div class="overview-card orange">
+                <div class="overview-icon">🔌</div>
+                <div class="overview-value" id="clusters-count">0</div>
+                <div class="overview-label">电池簇</div>
+            </div>
+            <div class="overview-card green">
+                <div class="overview-icon">📋</div>
+                <div class="overview-value" id="packs-count">0</div>
+                <div class="overview-label">电池包</div>
+            </div>
+            <div class="overview-card purple">
+                <div class="overview-icon">⚡</div>
+                <div class="overview-value" id="cells-count">0</div>
+                <div class="overview-label">电芯数量</div>
+            </div>
+            <div class="overview-card">
+                <div class="overview-icon">✅</div>
+                <div class="overview-value" id="normal-count">0</div>
+                <div class="overview-label">正常电芯</div>
+            </div>
+            <div class="overview-card red">
+                <div class="overview-icon">⚠️</div>
+                <div class="overview-value" id="warning-count">0</div>
+                <div class="overview-label">告警数量</div>
+            </div>
+        </section>
+        
+        <!-- 系统架构图 -->
+        <section class="architecture-section">
+            <div class="arch-header">
+                <div class="section-title">📐 储能系统五级架构</div>
+                <div class="arch-legend">
+                    <div class="legend-item">
+                        <div class="legend-line-wrap comm">
+                            <div class="flow"></div>
+                        </div>
+                        <span>通信/数据流</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-line-wrap energy">
+                            <div class="flow"></div>
+                        </div>
+                        <span>能量流</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="arch-diagram-new" id="archDiagram">
+                <!-- SVG连接线层 -->
+                <svg class="arch-svg-container" id="archSvg">
+                    <defs>
+                        <!-- 垂直通信流 -->
+                        <linearGradient id="commGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" stop-color="#52c41a" stop-opacity="0"/>
+                            <stop offset="50%" stop-color="#7cfc00" stop-opacity="1"/>
+                            <stop offset="100%" stop-color="#52c41a" stop-opacity="0"/>
+                        </linearGradient>
+                        <!-- 垂直能量流 -->
+                        <linearGradient id="energyGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" stop-color="#ff6b6b" stop-opacity="0"/>
+                            <stop offset="50%" stop-color="#ff4757" stop-opacity="1"/>
+                            <stop offset="100%" stop-color="#ff6b6b" stop-opacity="0"/>
+                        </linearGradient>
+                        <!-- 水平通信流 - 蓝色科技渐变 -->
+                        <linearGradient id="commGradientH" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stop-color="#52c41a" stop-opacity="0"/>
+                            <stop offset="20%" stop-color="#52c41a" stop-opacity="0.3"/>
+                            <stop offset="40%" stop-color="#7cfc00" stop-opacity="0.8"/>
+                            <stop offset="50%" stop-color="#00ff7f" stop-opacity="1"/>
+                            <stop offset="60%" stop-color="#7cfc00" stop-opacity="0.8"/>
+                            <stop offset="80%" stop-color="#52c41a" stop-opacity="0.3"/>
+                            <stop offset="100%" stop-color="#52c41a" stop-opacity="0"/>
+                        </linearGradient>
+                        <!-- 水平能量流 - 金色能量渐变 -->
+                        <linearGradient id="energyGradientH" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stop-color="#ff6b6b" stop-opacity="0"/>
+                            <stop offset="20%" stop-color="#ff6b6b" stop-opacity="0.4"/>
+                            <stop offset="40%" stop-color="#ffd700" stop-opacity="0.9"/>
+                            <stop offset="50%" stop-color="#ffeb3b" stop-opacity="1"/>
+                            <stop offset="60%" stop-color="#ffd700" stop-opacity="0.9"/>
+                            <stop offset="80%" stop-color="#ff6b6b" stop-opacity="0.4"/>
+                            <stop offset="100%" stop-color="#ff6b6b" stop-opacity="0"/>
+                        </linearGradient>
+                        <!-- 通信流高级发光滤镜 -->
+                        <filter id="commGlow" x="-200%" y="-200%" width="500%" height="500%">
+                            <feGaussianBlur stdDeviation="3" result="blur1"/>
+                            <feGaussianBlur stdDeviation="6" result="blur2"/>
+                            <feFlood flood-color="#7cfc00" flood-opacity="0.4" result="color1"/>
+                            <feFlood flood-color="#52c41a" flood-opacity="0.6" result="color2"/>
+                            <feComposite in="color1" in2="blur1" operator="in" result="glow1"/>
+                            <feComposite in="color2" in2="blur2" operator="in" result="glow2"/>
+                            <feMerge>
+                                <feMergeNode in="glow2"/>
+                                <feMergeNode in="glow1"/>
+                                <feMergeNode in="SourceGraphic"/>
+                            </feMerge>
+                        </filter>
+                        <!-- 能量流高级发光滤镜 -->
+                        <filter id="energyGlow" x="-200%" y="-200%" width="500%" height="500%">
+                            <feGaussianBlur stdDeviation="4" result="blur1"/>
+                            <feGaussianBlur stdDeviation="8" result="blur2"/>
+                            <feFlood flood-color="#ffd700" flood-opacity="0.5" result="color1"/>
+                            <feFlood flood-color="#ff6b6b" flood-opacity="0.7" result="color2"/>
+                            <feComposite in="color1" in2="blur1" operator="in" result="glow1"/>
+                            <feComposite in="color2" in2="blur2" operator="in" result="glow2"/>
+                            <feMerge>
+                                <feMergeNode in="glow2"/>
+                                <feMergeNode in="glow1"/>
+                                <feMergeNode in="SourceGraphic"/>
+                            </feMerge>
+                        </filter>
+                    </defs>
+                    <!-- 动态绘制的线条 -->
+                </svg>
+                
+                <!-- 第一层：储能电站管理系统 -->
+                <div class="arch-level-row" data-level="station">
+                    <div class="level-title">电站级管理系统</div>
+                    <div class="node-group">
+                        <div class="arch-node station" id="station">
+                            <div class="node-icon">
+                                <svg viewBox="0 0 32 32"><rect x="2" y="6" width="28" height="20" rx="2" fill="#722ed1" opacity="0.25"/><rect x="3" y="7" width="26" height="18" stroke="#722ed1" stroke-width="1" fill="none"/><rect x="5" y="10" width="6" height="10" fill="#722ed1" opacity="0.4"/><rect x="13" y="10" width="6" height="10" fill="#722ed1" opacity="0.4"/><rect x="21" y="10" width="6" height="10" fill="#722ed1" opacity="0.4"/></svg>
+                            </div>
+                            <div class="node-name">电站</div>
+                            <div class="node-spec">3MW</div>
+                            <div class="node-tooltip">
+                                <div class="tooltip-title">储能电站 <span class="badge">运行</span></div>
+                                <div class="tooltip-row"><span class="label">功率</span><span class="value">3MW</span></div>
+                                <div class="tooltip-row"><span class="label">容量</span><span class="value">6MWh</span></div>
+                                <div class="tooltip-row"><span class="label">效率</span><span class="value">≥92%</span></div>
+                            </div>
+                        </div>
+                        <div class="arch-node ems" id="ems">
+                            <div class="node-icon">
+                                <svg viewBox="0 0 32 32"><rect x="4" y="6" width="24" height="20" rx="2" fill="#1890ff" opacity="0.2"/><rect x="6" y="9" width="20" height="14" stroke="#1890ff" stroke-width="1" fill="none"/><path d="M10 16 L14 12 L18 18 L22 14" stroke="#1890ff" stroke-width="1.5" fill="none"/><circle cx="10" cy="16" r="1.5" fill="#1890ff"/><circle cx="22" cy="14" r="1.5" fill="#1890ff"/></svg>
+                            </div>
+                            <div class="node-name">EMS</div>
+                            <div class="node-spec">调度</div>
+                            <div class="node-tooltip">
+                                <div class="tooltip-title">能量管理系统</div>
+                                <div class="tooltip-row"><span class="label">功能</span><span class="value">智能调度/削峰填谷</span></div>
+                                <div class="tooltip-row"><span class="label">策略</span><span class="value">经济优化运行</span></div>
+                            </div>
+                        </div>
+                        <div class="arch-node scada" id="scada">
+                            <div class="node-icon">
+                                <svg viewBox="0 0 32 32"><rect x="4" y="4" width="24" height="18" rx="1" fill="#52c41a" opacity="0.2"/><rect x="5" y="5" width="22" height="16" stroke="#52c41a" stroke-width="1" fill="none"/><rect x="8" y="8" width="6" height="4" fill="#52c41a" opacity="0.4"/><rect x="16" y="8" width="8" height="4" fill="#52c41a" opacity="0.4"/><rect x="8" y="14" width="16" height="2" fill="#52c41a" opacity="0.3"/><rect x="10" y="22" width="12" height="4" rx="1" fill="#52c41a" opacity="0.3"/></svg>
+                            </div>
+                            <div class="node-name">SCADA</div>
+                            <div class="node-spec">监控</div>
+                            <div class="node-tooltip">
+                                <div class="tooltip-title">监控系统</div>
+                                <div class="tooltip-row"><span class="label">采样周期</span><span class="value">1秒</span></div>
+                                <div class="tooltip-row"><span class="label">功能</span><span class="value">实时监控/报警</span></div>
+                            </div>
+                        </div>
+                        <div class="arch-node fire" id="fire">
+                            <div class="node-icon">
+                                <svg viewBox="0 0 32 32"><ellipse cx="16" cy="20" rx="10" ry="6" fill="#ff4d4f" opacity="0.15"/><path d="M16 6 C12 10 10 14 10 18 C10 22 12.5 24 16 24 C19.5 24 22 22 22 18 C22 14 20 10 16 6" fill="#ff4d4f" opacity="0.3"/><path d="M16 12 C14 14 13 16 13 18 C13 20 14 21 16 21 C18 21 19 20 19 18 C19 16 18 14 16 12" fill="#ff4d4f" opacity="0.5"/></svg>
+                            </div>
+                            <div class="node-name">消防</div>
+                            <div class="node-spec">安全</div>
+                            <div class="node-tooltip">
+                                <div class="tooltip-title">消防系统</div>
+                                <div class="tooltip-row"><span class="label">类型</span><span class="value">七氟丙烷/气溶胶</span></div>
+                                <div class="tooltip-row"><span class="label">探测</span><span class="value">烟感/温感/可燃气体</span></div>
+                            </div>
+                        </div>
+                        <div class="arch-node thermal" id="thermal">
+                            <div class="node-icon">
+                                <svg viewBox="0 0 32 32"><rect x="8" y="4" width="16" height="24" rx="8" fill="#13c2c2" opacity="0.15"/><rect x="10" y="6" width="12" height="20" rx="6" stroke="#13c2c2" stroke-width="1" fill="none"/><rect x="13" y="14" width="6" height="8" fill="#13c2c2" opacity="0.4"/><circle cx="16" cy="10" r="2" fill="#13c2c2" opacity="0.3"/></svg>
+                            </div>
+                            <div class="node-name">热管理</div>
+                            <div class="node-spec">空调</div>
+                            <div class="node-tooltip">
+                                <div class="tooltip-title">热管理系统</div>
+                                <div class="tooltip-row"><span class="label">类型</span><span class="value">液冷/风冷</span></div>
+                                <div class="tooltip-row"><span class="label">温控</span><span class="value">20-28℃</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="level-separator"><div class="separator-label">IEC61850 / 光纤</div></div>
+                
+                <!-- 第二层：6个集装箱 + PCS -->
+                <div class="arch-level-row" data-level="container">
+                    <div class="level-title">集装箱级 (6台)</div>
+                    <div class="node-group" id="containerGroup">
+                        <div class="arch-node pcs" id="pcs1">
+                            <div class="node-icon">
+                                <svg viewBox="0 0 40 40" fill="none"><rect x="5" y="6" width="30" height="28" rx="2" fill="#fa8c16" opacity="0.2"/><rect x="7" y="8" width="26" height="24" rx="1" stroke="#fa8c16" stroke-width="1.5" fill="none"/><path d="M14 16 L20 20 L14 24" stroke="#fa8c16" stroke-width="2" fill="none"/><path d="M26 16 L20 20 L26 24" stroke="#fa8c16" stroke-width="2" fill="none"/><line x1="20" y1="10" x2="20" y2="14" stroke="#fa8c16" stroke-width="1.5"/><line x1="20" y1="26" x2="20" y2="30" stroke="#fa8c16" stroke-width="1.5"/></svg>
+                            </div>
+                            <div class="node-name">PCS</div>
+                            <div class="node-spec">500kW</div>
+                            <div class="node-tooltip">
+                                <div class="tooltip-title">储能变流器</div>
+                                <div class="tooltip-row"><span class="label">功率</span><span class="value">500kW</span></div>
+                                <div class="tooltip-row"><span class="label">效率</span><span class="value">≥98%</span></div>
+                                <div class="tooltip-row"><span class="label">功能</span><span class="value">DC/AC双向变换</span></div>
+                            </div>
+                        </div>
+                        <div class="arch-node container" id="box1" data-id="box1">
+                            <div class="node-icon">
+                                <svg viewBox="0 0 40 40" fill="none"><rect x="3" y="10" width="34" height="22" rx="1" fill="#1890ff" opacity="0.2"/><rect x="4" y="11" width="32" height="20" stroke="#1890ff" stroke-width="1.2" fill="none"/><line x1="4" y1="15" x2="36" y2="15" stroke="#1890ff" stroke-width="0.8"/><rect x="6" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><rect x="12" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><rect x="18" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><rect x="24" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><rect x="30" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><circle cx="8" cy="13" r="1" fill="#52c41a"/></svg>
+                            </div>
+                            <div class="node-name">箱1</div>
+                            <div class="node-spec">1MWh</div>
+                            <div class="node-tooltip">
+                                <div class="tooltip-title">储能集装箱 1</div>
+                                <div class="tooltip-row"><span class="label">容量</span><span class="value">1MWh</span></div>
+                                <div class="tooltip-row"><span class="label">电池簇</span><span class="value">6簇</span></div>
+                            </div>
+                        </div>
+                        <div class="arch-node container" id="box2" data-id="box2">
+                            <div class="node-icon">
+                                <svg viewBox="0 0 40 40" fill="none"><rect x="3" y="10" width="34" height="22" rx="1" fill="#1890ff" opacity="0.2"/><rect x="4" y="11" width="32" height="20" stroke="#1890ff" stroke-width="1.2" fill="none"/><line x1="4" y1="15" x2="36" y2="15" stroke="#1890ff" stroke-width="0.8"/><rect x="6" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><rect x="12" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><rect x="18" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><rect x="24" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><rect x="30" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><circle cx="8" cy="13" r="1" fill="#52c41a"/></svg>
+                            </div>
+                            <div class="node-name">箱2</div>
+                            <div class="node-spec">1MWh</div>
+                        </div>
+                        <div class="arch-node container" id="box3" data-id="box3">
+                            <div class="node-icon">
+                                <svg viewBox="0 0 40 40" fill="none"><rect x="3" y="10" width="34" height="22" rx="1" fill="#1890ff" opacity="0.2"/><rect x="4" y="11" width="32" height="20" stroke="#1890ff" stroke-width="1.2" fill="none"/><line x1="4" y1="15" x2="36" y2="15" stroke="#1890ff" stroke-width="0.8"/><rect x="6" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><rect x="12" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><rect x="18" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><rect x="24" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><rect x="30" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><circle cx="8" cy="13" r="1" fill="#52c41a"/></svg>
+                            </div>
+                            <div class="node-name">箱3</div>
+                            <div class="node-spec">1MWh</div>
+                        </div>
+                        <div class="arch-node container" id="box4" data-id="box4">
+                            <div class="node-icon">
+                                <svg viewBox="0 0 40 40" fill="none"><rect x="3" y="10" width="34" height="22" rx="1" fill="#1890ff" opacity="0.2"/><rect x="4" y="11" width="32" height="20" stroke="#1890ff" stroke-width="1.2" fill="none"/><line x1="4" y1="15" x2="36" y2="15" stroke="#1890ff" stroke-width="0.8"/><rect x="6" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><rect x="12" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><rect x="18" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><rect x="24" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><rect x="30" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><circle cx="8" cy="13" r="1" fill="#52c41a"/></svg>
+                            </div>
+                            <div class="node-name">箱4</div>
+                            <div class="node-spec">1MWh</div>
+                        </div>
+                        <div class="arch-node container" id="box5" data-id="box5">
+                            <div class="node-icon">
+                                <svg viewBox="0 0 40 40" fill="none"><rect x="3" y="10" width="34" height="22" rx="1" fill="#1890ff" opacity="0.2"/><rect x="4" y="11" width="32" height="20" stroke="#1890ff" stroke-width="1.2" fill="none"/><line x1="4" y1="15" x2="36" y2="15" stroke="#1890ff" stroke-width="0.8"/><rect x="6" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><rect x="12" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><rect x="18" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><rect x="24" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><rect x="30" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><circle cx="8" cy="13" r="1" fill="#52c41a"/></svg>
+                            </div>
+                            <div class="node-name">箱5</div>
+                            <div class="node-spec">1MWh</div>
+                        </div>
+                        <div class="arch-node container" id="box6" data-id="box6">
+                            <div class="node-icon">
+                                <svg viewBox="0 0 40 40" fill="none"><rect x="3" y="10" width="34" height="22" rx="1" fill="#1890ff" opacity="0.2"/><rect x="4" y="11" width="32" height="20" stroke="#1890ff" stroke-width="1.2" fill="none"/><line x1="4" y1="15" x2="36" y2="15" stroke="#1890ff" stroke-width="0.8"/><rect x="6" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><rect x="12" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><rect x="18" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><rect x="24" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><rect x="30" y="17" width="4" height="12" fill="#1890ff" opacity="0.4"/><circle cx="8" cy="13" r="1" fill="#52c41a"/></svg>
+                            </div>
+                            <div class="node-name">箱6</div>
+                            <div class="node-spec">1MWh</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="level-separator"><div class="separator-label">CAN/RS485</div></div>
+                
+                <!-- 第三层：电池簇 (6个) -->
+                <div class="arch-level-row" data-level="cluster">
+                    <div class="level-title">电池簇级 (每箱6簇)</div>
+                    <div class="node-group" id="clusterGroup">
+                        <div class="arch-node cluster" data-id="cluster1">
+                            <div class="node-icon">
+                                <svg viewBox="0 0 40 40" fill="none"><rect x="5" y="8" width="30" height="24" rx="2" fill="#52c41a" opacity="0.15"/><rect x="8" y="11" width="24" height="18" stroke="#52c41a" stroke-width="1.2" fill="none"/><rect x="10" y="14" width="5" height="12" fill="#52c41a" opacity="0.4"/><rect x="17" y="14" width="5" height="12" fill="#52c41a" opacity="0.4"/><rect x="24" y="14" width="5" height="12" fill="#52c41a" opacity="0.4"/><circle cx="32" cy="13" r="2" fill="#52c41a"/></svg>
+                            </div>
+                            <div class="node-name">簇1</div>
+                            <div class="node-tooltip">
+                                <div class="tooltip-title">电池簇 1</div>
+                                <div class="tooltip-row"><span class="label">Pack数</span><span class="value">4 Pack</span></div>
+                                <div class="tooltip-row"><span class="label">BMS</span><span class="value">CBMS-V2.1</span></div>
+                            </div>
+                        </div>
+                        <div class="arch-node cluster" data-id="cluster2">
+                            <div class="node-icon">
+                                <svg viewBox="0 0 40 40" fill="none"><rect x="5" y="8" width="30" height="24" rx="2" fill="#52c41a" opacity="0.15"/><rect x="8" y="11" width="24" height="18" stroke="#52c41a" stroke-width="1.2" fill="none"/><rect x="10" y="14" width="5" height="12" fill="#52c41a" opacity="0.4"/><rect x="17" y="14" width="5" height="12" fill="#52c41a" opacity="0.4"/><rect x="24" y="14" width="5" height="12" fill="#52c41a" opacity="0.4"/><circle cx="32" cy="13" r="2" fill="#52c41a"/></svg>
+                            </div>
+                            <div class="node-name">簇2</div>
+                        </div>
+                        <div class="arch-node cluster" data-id="cluster3">
+                            <div class="node-icon">
+                                <svg viewBox="0 0 40 40" fill="none"><rect x="5" y="8" width="30" height="24" rx="2" fill="#52c41a" opacity="0.15"/><rect x="8" y="11" width="24" height="18" stroke="#52c41a" stroke-width="1.2" fill="none"/><rect x="10" y="14" width="5" height="12" fill="#52c41a" opacity="0.4"/><rect x="17" y="14" width="5" height="12" fill="#52c41a" opacity="0.4"/><rect x="24" y="14" width="5" height="12" fill="#52c41a" opacity="0.4"/><circle cx="32" cy="13" r="2" fill="#52c41a"/></svg>
+                            </div>
+                            <div class="node-name">簇3</div>
+                        </div>
+                        <div class="arch-node cluster" data-id="cluster4">
+                            <div class="node-icon">
+                                <svg viewBox="0 0 40 40" fill="none"><rect x="5" y="8" width="30" height="24" rx="2" fill="#52c41a" opacity="0.15"/><rect x="8" y="11" width="24" height="18" stroke="#52c41a" stroke-width="1.2" fill="none"/><rect x="10" y="14" width="5" height="12" fill="#52c41a" opacity="0.4"/><rect x="17" y="14" width="5" height="12" fill="#52c41a" opacity="0.4"/><rect x="24" y="14" width="5" height="12" fill="#52c41a" opacity="0.4"/><circle cx="32" cy="13" r="2" fill="#52c41a"/></svg>
+                            </div>
+                            <div class="node-name">簇4</div>
+                        </div>
+                        <div class="arch-node cluster" data-id="cluster5">
+                            <div class="node-icon">
+                                <svg viewBox="0 0 40 40" fill="none"><rect x="5" y="8" width="30" height="24" rx="2" fill="#52c41a" opacity="0.15"/><rect x="8" y="11" width="24" height="18" stroke="#52c41a" stroke-width="1.2" fill="none"/><rect x="10" y="14" width="5" height="12" fill="#52c41a" opacity="0.4"/><rect x="17" y="14" width="5" height="12" fill="#52c41a" opacity="0.4"/><rect x="24" y="14" width="5" height="12" fill="#52c41a" opacity="0.4"/><circle cx="32" cy="13" r="2" fill="#52c41a"/></svg>
+                            </div>
+                            <div class="node-name">簇5</div>
+                        </div>
+                        <div class="arch-node cluster" data-id="cluster6">
+                            <div class="node-icon">
+                                <svg viewBox="0 0 40 40" fill="none"><rect x="5" y="8" width="30" height="24" rx="2" fill="#52c41a" opacity="0.15"/><rect x="8" y="11" width="24" height="18" stroke="#52c41a" stroke-width="1.2" fill="none"/><rect x="10" y="14" width="5" height="12" fill="#52c41a" opacity="0.4"/><rect x="17" y="14" width="5" height="12" fill="#52c41a" opacity="0.4"/><rect x="24" y="14" width="5" height="12" fill="#52c41a" opacity="0.4"/><circle cx="32" cy="13" r="2" fill="#52c41a"/></svg>
+                            </div>
+                            <div class="node-name">簇6</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="level-separator"><div class="separator-label">CAN 500kbps</div></div>
+                
+                <!-- 第四层：Pack级详细结构（BMS-Pack-DCDC拓扑） -->
+                <div class="arch-level-row" data-level="pack">
+                    <div class="level-title">Pack级 (每簇4Pack + BMS + DCDC)</div>
+                    <div class="pack-topology">
+                        <!-- BMS从机 -->
+                        <div class="topo-left">
+                            <div class="arch-node bms" data-id="bms1">
+                                <div class="node-icon">
+                                    <svg viewBox="0 0 40 40" fill="none"><rect x="6" y="8" width="28" height="24" rx="2" fill="#faad14" opacity="0.2"/><rect x="8" y="10" width="24" height="20" stroke="#faad14" stroke-width="1.2" fill="none"/><rect x="10" y="13" width="8" height="4" fill="#faad14" opacity="0.5"/><rect x="22" y="13" width="8" height="4" fill="#faad14" opacity="0.5"/><rect x="10" y="20" width="20" height="3" fill="#faad14" opacity="0.3"/><circle cx="12" cy="27" r="1.5" fill="#52c41a"/><circle cx="18" cy="27" r="1.5" fill="#52c41a"/><circle cx="24" cy="27" r="1.5" fill="#faad14"/><circle cx="30" cy="27" r="1.5" fill="#52c41a"/></svg>
+                                </div>
+                                <div class="node-name">BMS从机</div>
+                                <div class="node-spec">V3.2</div>
+                                <div class="node-tooltip">
+                                    <div class="tooltip-title">BMS从机板</div>
+                                    <div class="tooltip-row"><span class="label">采样</span><span class="value">16路电压+8路温度</span></div>
+                                    <div class="tooltip-row"><span class="label">SOC</span><span class="value">EKF算法</span></div>
+                                    <div class="tooltip-row"><span class="label">均衡</span><span class="value">主动100mA</span></div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Pack组（通过通信线与BMS相连） -->
+                        <div class="topo-center">
+                            <div class="pack-row">
+                                <div class="arch-node pack" data-id="pack1">
+                                    <div class="node-icon">
+                                        <svg viewBox="0 0 40 40" fill="none"><rect x="4" y="6" width="32" height="28" rx="2" fill="#eb2f96" opacity="0.15"/><rect x="6" y="8" width="28" height="24" stroke="#eb2f96" stroke-width="1.2" fill="none"/><rect x="9" y="12" width="5" height="16" fill="#eb2f96" opacity="0.4"/><rect x="16" y="12" width="5" height="16" fill="#eb2f96" opacity="0.4"/><rect x="23" y="12" width="5" height="16" fill="#eb2f96" opacity="0.4"/><line x1="8" y1="10" x2="32" y2="10" stroke="#eb2f96" stroke-width="0.8"/><text x="31" y="14" font-size="6" fill="#eb2f96">+</text><text x="31" y="28" font-size="6" fill="#eb2f96">-</text></svg>
+                                    </div>
+                                    <div class="node-name">Pack1</div>
+                                    <div class="node-spec">16S</div>
+                                </div>
+                                <div class="arch-node pack" data-id="pack2">
+                                    <div class="node-icon">
+                                        <svg viewBox="0 0 40 40" fill="none"><rect x="4" y="6" width="32" height="28" rx="2" fill="#eb2f96" opacity="0.15"/><rect x="6" y="8" width="28" height="24" stroke="#eb2f96" stroke-width="1.2" fill="none"/><rect x="9" y="12" width="5" height="16" fill="#eb2f96" opacity="0.4"/><rect x="16" y="12" width="5" height="16" fill="#eb2f96" opacity="0.4"/><rect x="23" y="12" width="5" height="16" fill="#eb2f96" opacity="0.4"/><line x1="8" y1="10" x2="32" y2="10" stroke="#eb2f96" stroke-width="0.8"/></svg>
+                                    </div>
+                                    <div class="node-name">Pack2</div>
+                                    <div class="node-spec">16S</div>
+                                </div>
+                                <div class="arch-node pack" data-id="pack3">
+                                    <div class="node-icon">
+                                        <svg viewBox="0 0 40 40" fill="none"><rect x="4" y="6" width="32" height="28" rx="2" fill="#eb2f96" opacity="0.15"/><rect x="6" y="8" width="28" height="24" stroke="#eb2f96" stroke-width="1.2" fill="none"/><rect x="9" y="12" width="5" height="16" fill="#eb2f96" opacity="0.4"/><rect x="16" y="12" width="5" height="16" fill="#eb2f96" opacity="0.4"/><rect x="23" y="12" width="5" height="16" fill="#eb2f96" opacity="0.4"/><line x1="8" y1="10" x2="32" y2="10" stroke="#eb2f96" stroke-width="0.8"/></svg>
+                                    </div>
+                                    <div class="node-name">Pack3</div>
+                                    <div class="node-spec">16S</div>
+                                </div>
+                                <div class="arch-node pack" data-id="pack4">
+                                    <div class="node-icon">
+                                        <svg viewBox="0 0 40 40" fill="none"><rect x="4" y="6" width="32" height="28" rx="2" fill="#eb2f96" opacity="0.15"/><rect x="6" y="8" width="28" height="24" stroke="#eb2f96" stroke-width="1.2" fill="none"/><rect x="9" y="12" width="5" height="16" fill="#eb2f96" opacity="0.4"/><rect x="16" y="12" width="5" height="16" fill="#eb2f96" opacity="0.4"/><rect x="23" y="12" width="5" height="16" fill="#eb2f96" opacity="0.4"/><line x1="8" y1="10" x2="32" y2="10" stroke="#eb2f96" stroke-width="0.8"/></svg>
+                                    </div>
+                                    <div class="node-name">Pack4</div>
+                                    <div class="node-spec">16S</div>
+                                </div>
+                            </div>
+                            <!-- 连接指示 -->
+                            <div class="topo-lines">
+                                <svg width="100%" height="24" class="topo-svg">
+                                    <defs>
+                                        <!-- 通信流渐变 -->
+                                        <linearGradient id="commLineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                                            <stop offset="0%" stop-color="#52c41a" stop-opacity="0"/>
+                                            <stop offset="30%" stop-color="#7cfc00" stop-opacity="0.6"/>
+                                            <stop offset="50%" stop-color="#00ff7f" stop-opacity="1"/>
+                                            <stop offset="70%" stop-color="#7cfc00" stop-opacity="0.6"/>
+                                            <stop offset="100%" stop-color="#52c41a" stop-opacity="0"/>
+                                        </linearGradient>
+                                        <!-- 能量流渐变 -->
+                                        <linearGradient id="energyLineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                                            <stop offset="0%" stop-color="#ff6b6b" stop-opacity="0"/>
+                                            <stop offset="30%" stop-color="#ffd700" stop-opacity="0.7"/>
+                                            <stop offset="50%" stop-color="#ffeb3b" stop-opacity="1"/>
+                                            <stop offset="70%" stop-color="#ffd700" stop-opacity="0.7"/>
+                                            <stop offset="100%" stop-color="#ff6b6b" stop-opacity="0"/>
+                                        </linearGradient>
+                                        <!-- 通信流发光 -->
+                                        <filter id="commLineGlow" x="-100%" y="-100%" width="300%" height="300%">
+                                            <feGaussianBlur stdDeviation="2" result="blur"/>
+                                            <feFlood flood-color="#7cfc00" flood-opacity="0.6" result="color"/>
+                                            <feComposite in="color" in2="blur" operator="in" result="glow"/>
+                                            <feMerge>
+                                                <feMergeNode in="glow"/>
+                                                <feMergeNode in="SourceGraphic"/>
+                                            </feMerge>
+                                        </filter>
+                                        <!-- 能量流发光 -->
+                                        <filter id="energyLineGlow" x="-100%" y="-100%" width="300%" height="300%">
+                                            <feGaussianBlur stdDeviation="3" result="blur"/>
+                                            <feFlood flood-color="#ffd700" flood-opacity="0.7" result="color"/>
+                                            <feComposite in="color" in2="blur" operator="in" result="glow"/>
+                                            <feMerge>
+                                                <feMergeNode in="glow"/>
+                                                <feMergeNode in="SourceGraphic"/>
+                                            </feMerge>
+                                        </filter>
+                                    </defs>
+                                    <!-- 通信背景光晕 -->
+                                    <line x1="0" y1="8" x2="100%" y2="8" stroke="rgba(82,196,26,0.1)" stroke-width="6" stroke-linecap="round"/>
+                                    <!-- 通信流动光 -->
+                                    <line x1="0" y1="8" x2="100%" y2="8" stroke="url(#commLineGrad)" stroke-width="2.5" stroke-linecap="round" class="comm-anim" filter="url(#commLineGlow)"/>
+                                    <!-- 能量背景光晕 -->
+                                    <line x1="0" y1="18" x2="100%" y2="18" stroke="rgba(255,215,0,0.1)" stroke-width="7" stroke-linecap="round"/>
+                                    <!-- 能量流动光 -->
+                                    <line x1="0" y1="18" x2="100%" y2="18" stroke="url(#energyLineGrad)" stroke-width="3.5" stroke-linecap="round" class="energy-anim" filter="url(#energyLineGlow)"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <!-- DCDC变换器 -->
+                        <div class="topo-right">
+                            <div class="arch-node dcdc" data-id="dcdc1">
+                                <div class="node-icon">
+                                    <svg viewBox="0 0 40 40" fill="none"><rect x="6" y="8" width="28" height="24" rx="2" fill="#13c2c2" opacity="0.2"/><rect x="8" y="10" width="24" height="20" stroke="#13c2c2" stroke-width="1.2" fill="none"/><path d="M12 20 L18 14 L18 26 Z" fill="#13c2c2" opacity="0.6"/><path d="M28 20 L22 14 L22 26 Z" fill="#13c2c2" opacity="0.6"/><line x1="18" y1="20" x2="22" y2="20" stroke="#13c2c2" stroke-width="2"/><text x="14" y="32" font-size="5" fill="#13c2c2">DC</text><text x="24" y="32" font-size="5" fill="#13c2c2">DC</text></svg>
+                                </div>
+                                <div class="node-name">DCDC</div>
+                                <div class="node-spec">30kW</div>
+                                <div class="node-tooltip">
+                                    <div class="tooltip-title">DC/DC变换器</div>
+                                    <div class="tooltip-row"><span class="label">功率</span><span class="value">30kW</span></div>
+                                    <div class="tooltip-row"><span class="label">输入</span><span class="value">40-60V</span></div>
+                                    <div class="tooltip-row"><span class="label">输出</span><span class="value">750V DC母线</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="level-separator"><div class="separator-label">硬件采样</div></div>
+                
+                <!-- 第五层：电芯 -->
+                <div class="arch-level-row" data-level="cell">
+                    <div class="level-title">电芯级 (每Pack 16S)</div>
+                    <div class="node-group" id="cellGroup">
+                        <div class="arch-node cell" data-id="cell1">
+                            <div class="node-icon">
+                                <svg viewBox="0 0 40 40" fill="none"><rect x="10" y="4" width="20" height="32" rx="2" fill="#597ef7" opacity="0.15"/><rect x="12" y="6" width="16" height="28" stroke="#597ef7" stroke-width="1.2" fill="none"/><rect x="16" y="2" width="8" height="3" fill="#597ef7"/><rect x="14" y="10" width="12" height="20" fill="#597ef7" opacity="0.3"/><line x1="14" y1="15" x2="26" y2="15" stroke="#597ef7" stroke-width="0.5" opacity="0.5"/><line x1="14" y1="20" x2="26" y2="20" stroke="#597ef7" stroke-width="0.5" opacity="0.5"/><line x1="14" y1="25" x2="26" y2="25" stroke="#597ef7" stroke-width="0.5" opacity="0.5"/></svg>
+                            </div>
+                            <div class="node-name">Cell</div>
+                            <div class="node-spec">3.2V</div>
+                            <div class="node-tooltip">
+                                <div class="tooltip-title">电池单体</div>
+                                <div class="tooltip-row"><span class="label">类型</span><span class="value">LFP 280Ah</span></div>
+                                <div class="tooltip-row"><span class="label">电压</span><span class="value">3.2V</span></div>
+                            </div>
+                        </div>
+                        <div class="arch-node cell" data-id="cell2">
+                            <div class="node-icon">
+                                <svg viewBox="0 0 40 40" fill="none"><rect x="10" y="4" width="20" height="32" rx="2" fill="#597ef7" opacity="0.15"/><rect x="12" y="6" width="16" height="28" stroke="#597ef7" stroke-width="1.2" fill="none"/><rect x="16" y="2" width="8" height="3" fill="#597ef7"/><rect x="14" y="10" width="12" height="20" fill="#597ef7" opacity="0.3"/></svg>
+                            </div>
+                            <div class="node-name">Cell</div>
+                            <div class="node-spec">3.2V</div>
+                        </div>
+                        <div class="arch-node cell" data-id="cell3">
+                            <div class="node-icon">
+                                <svg viewBox="0 0 40 40" fill="none"><rect x="10" y="4" width="20" height="32" rx="2" fill="#597ef7" opacity="0.15"/><rect x="12" y="6" width="16" height="28" stroke="#597ef7" stroke-width="1.2" fill="none"/><rect x="16" y="2" width="8" height="3" fill="#597ef7"/><rect x="14" y="10" width="12" height="20" fill="#597ef7" opacity="0.3"/></svg>
+                            </div>
+                            <div class="node-name">Cell</div>
+                            <div class="node-spec">3.2V</div>
+                        </div>
+                        <div class="arch-node cell" data-id="cell-more">
+                            <div class="node-icon">
+                                <svg viewBox="0 0 40 40" fill="none"><text x="12" y="26" font-size="16" fill="#597ef7">···</text></svg>
+                            </div>
+                            <div class="node-name">×16</div>
+                            <div class="node-spec">串联</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 聚合算法说明 -->
+                <div class="agg-panel">
+                    <div class="agg-title">状态聚合算法</div>
+                    <div class="agg-grid">
+                        <div class="agg-card"><div class="agg-icon soc">SOC</div><div class="agg-name">加权均值</div><div class="agg-desc">按能量加权</div></div>
+                        <div class="agg-card"><div class="agg-icon soh">SOH</div><div class="agg-name">最小值法</div><div class="agg-desc">木桶效应</div></div>
+                        <div class="agg-card"><div class="agg-icon temp">T</div><div class="agg-name">最大值法</div><div class="agg-desc">关注最高温</div></div>
+                        <div class="agg-card"><div class="agg-icon status">S</div><div class="agg-name">严格+投票</div><div class="agg-desc">故障优先</div></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <script>
+        // 架构图动态连接线
+        function drawArchLines() {
+            const svg = document.getElementById('archSvg');
+            const container = document.getElementById('archDiagram');
+            if (!svg || !container) return;
+            
+            // 清空现有线条
+            svg.innerHTML = svg.querySelector('defs').outerHTML;
+            
+            const containerRect = container.getBoundingClientRect();
+            svg.setAttribute('width', containerRect.width);
+            svg.setAttribute('height', containerRect.height);
+            
+            // 获取节点位置
+            const getNodeCenter = (id) => {
+                const node = document.getElementById(id) || document.querySelector(`[data-id="${id}"]`);
+                if (!node) return null;
+                const rect = node.getBoundingClientRect();
+                return {
+                    x: rect.left - containerRect.left + rect.width / 2,
+                    y: rect.top - containerRect.top + rect.height / 2,
+                    bottom: rect.top - containerRect.top + rect.height,
+                    top: rect.top - containerRect.top
+                };
+            };
+            
+            // 绘制动态线条
+            const drawLine = (from, to, type, offset = 0) => {
+                if (!from || !to) return;
+                
+                const x1 = from.x + offset;
+                const x2 = to.x + offset;
+                const y1 = from.bottom + 5;
+                const y2 = to.top - 5;
+                
+                // 背景线
+                const bgLine = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                const path = `M ${x1} ${y1} C ${x1} ${(y1+y2)/2}, ${x2} ${(y1+y2)/2}, ${x2} ${y2}`;
+                bgLine.setAttribute('d', path);
+                bgLine.setAttribute('class', `flow-line ${type}`);
+                svg.appendChild(bgLine);
+                
+                // 流动粒子
+                const flowLine = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                flowLine.setAttribute('d', path);
+                flowLine.setAttribute('class', `flow-particle ${type}`);
+                flowLine.setAttribute('stroke-dasharray', '10 30');
+                flowLine.style.animation = `dashFlow ${1.5 + Math.random() * 0.5}s linear infinite`;
+                if (type === 'energy') {
+                    flowLine.style.animationDirection = 'reverse';
+                }
+                svg.appendChild(flowLine);
+            };
+            
+            // 绘制分支线
+            const drawBranchLines = (fromId, toIds, types) => {
+                const from = getNodeCenter(fromId);
+                if (!from) return;
+                
+                toIds.forEach((toId, index) => {
+                    const to = getNodeCenter(toId);
+                    if (to) {
+                        types.forEach((type, tIndex) => {
+                            drawLine(from, to, type, (tIndex - 0.5) * 6);
+                        });
+                    }
+                });
+            };
+            
+            // 电站 -> 集装箱/PCS
+            drawBranchLines('station', ['pcs', 'container'], ['comm', 'energy']);
+            
+            // 集装箱 -> 6个簇
+            drawBranchLines('container', ['cluster1', 'cluster2', 'cluster3', 'cluster4', 'cluster5', 'cluster6'], ['comm', 'energy']);
+            
+            // 簇3 -> Pack/BMS/DCDC (示例)
+            drawBranchLines('cluster3', ['bms1', 'pack1', 'pack2', 'pack3', 'pack4', 'dcdc1'], ['comm', 'energy']);
+            
+            // Pack1 -> Cells
+            drawBranchLines('pack1', ['cell1', 'cell2', 'cell3', 'cell4', 'cell-more'], ['energy']);
+        }
+        
+        // 初始化
+        setTimeout(drawArchLines, 500);
+        window.addEventListener('resize', drawArchLines);
+        </script>
+        
+        <!-- 集装箱可视化 -->
+        <section class="containers-visual">
+            <div class="section-title">储能集装箱总览</div>
+            <div class="containers-row" id="containers-visual">
+                <!-- 动态生成 -->
+            </div>
+        </section>
+        
+        <!-- 拓扑结构 -->
+        <section class="topology-grid">
+            <!-- 左侧树形 -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">储能系统拓扑</div>
+                    <span class="status-badge normal" id="system-status">
+                        <span>●</span> 正常运行
+                    </span>
+                </div>
+                <div class="panel-content" id="topology-tree">
+                    <!-- 动态生成 -->
+                </div>
+            </div>
+            
+            <!-- 右侧电芯矩阵 -->
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title" id="cells-panel-title">选择Pack查看电芯</div>
+                    <span style="font-size:12px;color:var(--text-muted)">点击电芯可勾选加入曲线对比</span>
+                </div>
+                <div class="panel-content">
+                    <div class="cells-grid" id="cells-grid">
+                        <div style="text-align: center; color: var(--text-muted); padding: 60px 20px; grid-column: 1 / -1;">
+                            请在左侧树形结构中选择一个Pack查看电芯详情
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- 电芯参数曲线图 -->
+        <section class="chart-section">
+            <div class="chart-header">
+                <div class="section-title" style="margin-bottom:0">电芯参数曲线对比</div>
+                <div class="chart-controls">
+                    <div class="param-select">
+                        <label class="param-checkbox active" data-param="voltage">
+                            <span class="check-icon">✓</span>
+                            <span>电压</span>
+                        </label>
+                        <label class="param-checkbox active" data-param="temperature">
+                            <span class="check-icon">✓</span>
+                            <span>温度</span>
+                        </label>
+                        <label class="param-checkbox" data-param="soc">
+                            <span class="check-icon">✓</span>
+                            <span>SOC</span>
+                        </label>
+                        <label class="param-checkbox" data-param="soh">
+                            <span class="check-icon">✓</span>
+                            <span>SOH</span>
+                        </label>
+                        <label class="param-checkbox" data-param="current">
+                            <span class="check-icon">✓</span>
+                            <span>电流</span>
+                        </label>
+                        <label class="param-checkbox" data-param="resistance">
+                            <span class="check-icon">✓</span>
+                            <span>内阻</span>
+                        </label>
+                    </div>
+                    <button class="btn btn-secondary" onclick="clearSelectedCells()">清空选择</button>
+                    <button class="btn btn-primary" onclick="refreshChart()">刷新曲线</button>
+                </div>
+            </div>
+            
+            <div class="selected-cells" id="selected-cells-tags">
+                <span style="color:var(--text-muted);font-size:13px;">已选电芯：</span>
+                <span style="color:var(--text-muted);font-size:12px;" id="no-cell-hint">点击上方电芯卡片添加到对比</span>
+            </div>
+            
+            <div class="chart-container">
+                <canvas id="cell-chart"></canvas>
+                <div class="chart-empty" id="chart-empty">
+                    <div class="chart-empty-icon">📊</div>
+                    <div>请选择电芯和参数后查看曲线</div>
+                </div>
+            </div>
+        </section>
+    </main>
+    
+    <!-- 电芯详情弹窗 -->
+    <div class="modal-overlay" id="cell-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title" id="modal-cell-id">电芯详情</div>
+                <button class="modal-close" onclick="closeModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="detail-grid">
+                    <div class="detail-item">
+                        <div class="detail-label">荷电状态 SOC</div>
+                        <div class="detail-value" id="modal-soc">0%</div>
+                        <div class="detail-bar"><div class="detail-bar-fill" id="modal-soc-bar" style="width: 50%"></div></div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">健康状态 SOH</div>
+                        <div class="detail-value green" id="modal-soh">0%</div>
+                        <div class="detail-bar"><div class="detail-bar-fill" id="modal-soh-bar" style="width: 50%"></div></div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">能量状态 SOE</div>
+                        <div class="detail-value" id="modal-soe">0%</div>
+                        <div class="detail-bar"><div class="detail-bar-fill" id="modal-soe-bar" style="width: 50%"></div></div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">功率状态 SOP</div>
+                        <div class="detail-value" id="modal-sop">0%</div>
+                        <div class="detail-bar"><div class="detail-bar-fill" id="modal-sop-bar" style="width: 50%"></div></div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">电压</div>
+                        <div class="detail-value" id="modal-voltage">0 V</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">温度</div>
+                        <div class="detail-value orange" id="modal-temp">0 ℃</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">内阻</div>
+                        <div class="detail-value" id="modal-resistance">0 mΩ</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">循环次数</div>
+                        <div class="detail-value" id="modal-cycles">0</div>
+                    </div>
+                </div>
+                <div id="modal-alarms"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = '/api';
+        
+        // 电芯曲线图相关
+        let selectedCells = [];
+        let selectedParams = ['voltage', 'temperature'];
+        let cellChart = null;
+        
+        const paramConfig = {
+            voltage: { label: '电压', unit: 'V', color: '#1890ff' },
+            temperature: { label: '温度', unit: '℃', color: '#ff9500' },
+            soc: { label: 'SOC', unit: '%', color: '#00a854' },
+            soh: { label: 'SOH', unit: '%', color: '#722ed1' },
+            current: { label: '电流', unit: 'A', color: '#ff6b6b' },
+            resistance: { label: '内阻', unit: 'mΩ', color: '#13c2c2' }
+        };
+        
+        const colorPalette = ['#1890ff', '#ff9500', '#00a854', '#722ed1', '#ff6b6b', '#13c2c2', '#eb2f96', '#faad14'];
+        
+        // 初始化曲线图
+        function initCellChart() {
+            const ctx = document.getElementById('cell-chart').getContext('2d');
+            cellChart = new Chart(ctx, {
+                type: 'line',
+                data: { labels: [], datasets: [] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: { usePointStyle: true, font: { size: 12 } }
+                        },
+                        tooltip: { mode: 'index', intersect: false }
+                    },
+                    scales: {
+                        x: {
+                            title: { display: true, text: '时间' },
+                            ticks: { maxRotation: 45, minRotation: 45 }
+                        },
+                        y: { title: { display: true, text: '参数值' } }
+                    }
+                }
+            });
+        }
+        
+        // 切换参数选择
+        document.querySelectorAll('.param-checkbox').forEach(el => {
+            el.addEventListener('click', function() {
+                this.classList.toggle('active');
+                const param = this.dataset.param;
+                if (this.classList.contains('active')) {
+                    if (!selectedParams.includes(param)) selectedParams.push(param);
+                } else {
+                    selectedParams = selectedParams.filter(p => p !== param);
+                }
+            });
+        });
+        
+        // 添加/移除电芯
+        function toggleCellSelection(cellId, cellData) {
+            const index = selectedCells.findIndex(c => c.id === cellId);
+            if (index >= 0) {
+                selectedCells.splice(index, 1);
+            } else {
+                if (selectedCells.length >= 8) {
+                    alert('最多选择8个电芯进行对比');
+                    return;
+                }
+                selectedCells.push({ id: cellId, data: cellData });
+            }
+            updateSelectedCellsTags();
+            refreshChart();
+        }
+        
+        function updateSelectedCellsTags() {
+            const container = document.getElementById('selected-cells-tags');
+            const hint = document.getElementById('no-cell-hint');
+            
+            if (selectedCells.length === 0) {
+                hint.style.display = 'inline';
+                container.innerHTML = '<span style="color:var(--text-muted);font-size:13px;">已选电芯：</span>' +
+                    '<span style="color:var(--text-muted);font-size:12px;" id="no-cell-hint">点击上方电芯卡片添加到对比</span>';
+            } else {
+                container.innerHTML = '<span style="color:var(--text-muted);font-size:13px;">已选电芯：</span>' +
+                    selectedCells.map((c, i) => `
+                        <span class="cell-tag" style="border-left: 3px solid ${colorPalette[i % colorPalette.length]}">
+                            ${c.id.split('-').pop()}
+                            <span class="remove" onclick="removeCell('${c.id}')">×</span>
+                        </span>
+                    `).join('');
+            }
+        }
+        
+        function removeCell(cellId) {
+            selectedCells = selectedCells.filter(c => c.id !== cellId);
+            updateSelectedCellsTags();
+            refreshChart();
+        }
+        
+        function clearSelectedCells() {
+            selectedCells = [];
+            updateSelectedCellsTags();
+            refreshChart();
+        }
+        
+        // 刷新曲线图
+        async function refreshChart() {
+            const emptyEl = document.getElementById('chart-empty');
+            
+            if (selectedCells.length === 0 || selectedParams.length === 0) {
+                emptyEl.style.display = 'block';
+                cellChart.data.labels = [];
+                cellChart.data.datasets = [];
+                cellChart.update();
+                return;
+            }
+            
+            emptyEl.style.display = 'none';
+            
+            // 生成模拟历史数据（实际应从API获取）
+            const timeLabels = [];
+            const now = new Date();
+            for (let i = 23; i >= 0; i--) {
+                const t = new Date(now - i * 3600000);
+                timeLabels.push(t.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }));
+            }
+            
+            const datasets = [];
+            selectedCells.forEach((cell, cellIndex) => {
+                selectedParams.forEach((param, paramIndex) => {
+                    const baseValue = cell.data[param] || 50;
+                    const data = timeLabels.map((_, i) => {
+                        // 模拟波动数据
+                        const variation = Math.sin(i / 3 + cellIndex) * (baseValue * 0.1) + (Math.random() - 0.5) * (baseValue * 0.05);
+                        return (baseValue + variation).toFixed(2);
+                    });
+                    
+                    const color = colorPalette[cellIndex % colorPalette.length];
+                    const paramInfo = paramConfig[param];
+                    
+                    datasets.push({
+                        label: `${cell.id.split('-').pop()}-${paramInfo.label}`,
+                        data: data,
+                        borderColor: color,
+                        backgroundColor: color + '20',
+                        borderWidth: 2,
+                        borderDash: paramIndex > 0 ? [5, 5] : [],
+                        pointRadius: 2,
+                        tension: 0.3,
+                        fill: false
+                    });
+                });
+            });
+            
+            cellChart.data.labels = timeLabels;
+            cellChart.data.datasets = datasets;
+            cellChart.update();
+        }
+        
+        async function loadOverview() {
+            try {
+                const res = await fetch(`${API_BASE}/storage/detail/overview`);
+                if (!res.ok) {
+                    throw new Error(`HTTP error! status: ${res.status}`);
+                }
+                const data = await res.json();
+                
+                // 安全地设置所有DOM元素，检查元素是否存在
+                const containersCountEl = document.getElementById('containers-count');
+                if (containersCountEl) containersCountEl.textContent = data.containers_count || 0;
+                
+                const clustersCountEl = document.getElementById('clusters-count');
+                if (clustersCountEl) clustersCountEl.textContent = data.clusters_count || 0;
+                
+                const packsCountEl = document.getElementById('packs-count');
+                if (packsCountEl) packsCountEl.textContent = data.packs_count || 0;
+                
+                const cellsCountEl = document.getElementById('cells-count');
+                if (cellsCountEl) cellsCountEl.textContent = data.cells_count || 0;
+                
+                // 检查元素是否存在再设置（这些元素可能不存在）
+                const totalCellsEl = document.getElementById('total-cells');
+                if (totalCellsEl) totalCellsEl.textContent = data.cells_count || 0;
+                
+                const totalEnergyEl = document.getElementById('total-energy');
+                if (totalEnergyEl) totalEnergyEl.textContent = data.total_energy_mwh || 0;
+                
+                const avgSocEl = document.getElementById('avg-soc');
+                if (avgSocEl) avgSocEl.textContent = (data.soc_avg || 0) + '%';
+                
+                const normalCount = (data.cells_count || 0) - (data.total_faults || 0) - (data.total_warnings || 0);
+                const normalCountEl = document.getElementById('normal-count');
+                if (normalCountEl) normalCountEl.textContent = Math.max(0, normalCount);
+                
+                const warningCountEl = document.getElementById('warning-count');
+                if (warningCountEl) warningCountEl.textContent = (data.total_warnings || 0) + (data.total_faults || 0);
+                
+                const statusEl = document.getElementById('system-status');
+                if (statusEl) {
+                    if (data.system_status === 'fault') {
+                        statusEl.className = 'status-badge fault';
+                        statusEl.innerHTML = '<span>●</span> 存在故障';
+                    } else if (data.system_status === 'warning') {
+                        statusEl.className = 'status-badge warning';
+                        statusEl.innerHTML = '<span>●</span> 存在告警';
+                    } else {
+                        statusEl.className = 'status-badge normal';
+                        statusEl.innerHTML = '<span>●</span> 正常运行';
+                    }
+                }
+                
+                await loadContainers();
+            } catch (e) {
+                console.error('加载总览失败', e);
+                // 即使总览加载失败，也尝试加载集装箱
+                await loadContainers();
+            }
+        }
+        
+        async function loadContainers() {
+            try {
+                const res = await fetch(`${API_BASE}/storage/detail/containers`);
+                if (!res.ok) {
+                    throw new Error(`HTTP error! status: ${res.status}`);
+                }
+                const containers = await res.json();
+                
+                if (!containers || !Array.isArray(containers) || containers.length === 0) {
+                    console.warn('未获取到集装箱数据');
+                    const visualEl = document.getElementById('containers-visual');
+                    const treeEl = document.getElementById('topology-tree');
+                    visualEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:40px;">暂无集装箱数据</div>';
+                    treeEl.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:40px;">暂无集装箱数据</div>';
+                    return;
+                }
+                
+                const visualEl = document.getElementById('containers-visual');
+                visualEl.innerHTML = containers.map(c => `
+                    <div class="container-box" onclick="selectContainer('${c.container_id}')">
+                        <h4>${c.container_id}</h4>
+                        <p>${c.clusters_count}簇 / ${c.cells_count}电芯</p>
+                        <p>SOC: ${c.soc_avg}%</p>
+                        <div class="container-indicator ${c.status || 'normal'}"></div>
+                    </div>
+                `).join('');
+                
+                const treeEl = document.getElementById('topology-tree');
+                treeEl.innerHTML = containers.map(c => `
+                    <div class="tree-item" id="tree-${c.container_id}">
+                        <div class="tree-node container" onclick="toggleContainer('${c.container_id}')">
+                            <span class="tree-icon">📦</span>
+                            <span class="tree-label">${c.container_id} (${c.clusters_count}簇)</span>
+                            <span class="tree-status ${c.status || 'normal'}"></span>
+                        </div>
+                        <div class="tree-children" id="children-${c.container_id}"></div>
+                    </div>
+                `).join('');
+                
+            } catch (e) {
+                console.error('加载集装箱失败', e);
+                const visualEl = document.getElementById('containers-visual');
+                const treeEl = document.getElementById('topology-tree');
+                visualEl.innerHTML = '<div style="text-align:center;color:var(--red);padding:40px;">加载集装箱失败，请刷新页面重试</div>';
+                treeEl.innerHTML = '<div style="text-align:center;color:var(--red);padding:40px;">加载拓扑失败，请刷新页面重试</div>';
+            }
+        }
+        
+        async function selectContainer(containerId) {
+            toggleContainer(containerId);
+        }
+        
+        async function toggleContainer(containerId) {
+            const treeItem = document.getElementById(`tree-${containerId}`);
+            const childrenEl = document.getElementById(`children-${containerId}`);
+            
+            if (treeItem.classList.contains('expanded')) {
+                treeItem.classList.remove('expanded');
+                return;
+            }
+            
+            try {
+                const res = await fetch(`${API_BASE}/storage/detail/container/${containerId}`);
+                const data = await res.json();
+                
+                childrenEl.innerHTML = data.clusters.map(cl => `
+                    <div class="tree-item" id="tree-${cl.cluster_id}">
+                        <div class="tree-node cluster" onclick="toggleCluster('${containerId}', '${cl.cluster_id}')">
+                            <span class="tree-icon">🔌</span>
+                            <span class="tree-label">${cl.cluster_id} (${cl.packs_count}Pack)</span>
+                            <span class="tree-status ${cl.status}"></span>
+                        </div>
+                        <div class="tree-children" id="children-${cl.cluster_id}"></div>
+                    </div>
+                `).join('');
+                
+                treeItem.classList.add('expanded');
+            } catch (e) {
+                console.error('加载集装箱详情失败', e);
+            }
+        }
+        
+        async function toggleCluster(containerId, clusterId) {
+            const treeItem = document.getElementById(`tree-${clusterId}`);
+            const childrenEl = document.getElementById(`children-${clusterId}`);
+            
+            if (treeItem.classList.contains('expanded')) {
+                treeItem.classList.remove('expanded');
+                return;
+            }
+            
+            try {
+                const res = await fetch(`${API_BASE}/storage/detail/cluster/${containerId}/${clusterId}`);
+                const data = await res.json();
+                
+                childrenEl.innerHTML = data.packs.map(p => `
+                    <div class="tree-node pack" onclick="loadPackCells('${containerId}', '${clusterId}', '${p.pack_id}')">
+                        <span class="tree-icon">📋</span>
+                        <span class="tree-label">${p.pack_id} (${p.cells_count}电芯)</span>
+                        <span class="tree-status ${p.status}"></span>
+                    </div>
+                `).join('');
+                
+                treeItem.classList.add('expanded');
+            } catch (e) {
+                console.error('加载电池簇详情失败', e);
+            }
+        }
+        
+        let currentPackCells = [];
+        
+        async function loadPackCells(containerId, clusterId, packId) {
+            try {
+                const res = await fetch(`${API_BASE}/storage/detail/cells/${containerId}/${clusterId}/${packId}`);
+                const cells = await res.json();
+                currentPackCells = cells;
+                
+                document.getElementById('cells-panel-title').textContent = `${packId} 电芯矩阵 (${cells.length}个)`;
+                
+                renderCellsGrid();
+                
+            } catch (e) {
+                console.error('加载电芯失败', e);
+            }
+        }
+        
+        function renderCellsGrid() {
+            const gridEl = document.getElementById('cells-grid');
+            gridEl.innerHTML = currentPackCells.map(c => {
+                const isSelected = selectedCells.some(sc => sc.id === c.cell_id);
+                return `
+                    <div class="cell-card ${c.status} ${isSelected ? 'selected' : ''}" 
+                         style="${isSelected ? 'box-shadow: 0 0 0 2px var(--primary); background: rgba(255,107,0,0.08);' : ''}"
+                         onclick="handleCellClick('${c.cell_id}', event)"
+                         data-cell='${JSON.stringify(c)}'>
+                        <div class="cell-id">${c.cell_id.split('-').pop()}</div>
+                        <div class="cell-soc">${c.soc}%</div>
+                        <div class="cell-temp">${c.temperature}℃</div>
+                        ${isSelected ? '<div style="font-size:10px;color:var(--primary);margin-top:4px;">✓ 已选</div>' : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function handleCellClick(cellId, event) {
+            const cellData = currentPackCells.find(c => c.cell_id === cellId);
+            if (event.ctrlKey || event.metaKey) {
+                // Ctrl+点击：添加到对比
+                toggleCellSelection(cellId, cellData);
+                renderCellsGrid();
+            } else if (event.shiftKey) {
+                // Shift+点击：也添加到对比
+                toggleCellSelection(cellId, cellData);
+                renderCellsGrid();
+            } else {
+                // 单击：弹窗显示详情 + 添加到对比
+                toggleCellSelection(cellId, cellData);
+                renderCellsGrid();
+                showCellDetail(cellId);
+            }
+        }
+        
+        async function showCellDetail(cellId) {
+            try {
+                const res = await fetch(`${API_BASE}/storage/detail/cell/${cellId}`);
+                const cell = await res.json();
+                
+                document.getElementById('modal-cell-id').textContent = `电芯详情 - ${cellId}`;
+                document.getElementById('modal-soc').textContent = cell.soc + '%';
+                document.getElementById('modal-soc-bar').style.width = cell.soc + '%';
+                document.getElementById('modal-soh').textContent = cell.soh + '%';
+                document.getElementById('modal-soh-bar').style.width = cell.soh + '%';
+                document.getElementById('modal-soe').textContent = cell.soe + '%';
+                document.getElementById('modal-soe-bar').style.width = cell.soe + '%';
+                document.getElementById('modal-sop').textContent = cell.sop + '%';
+                document.getElementById('modal-sop-bar').style.width = cell.sop + '%';
+                document.getElementById('modal-voltage').textContent = cell.voltage + ' V';
+                document.getElementById('modal-temp').textContent = cell.temperature + ' ℃';
+                document.getElementById('modal-resistance').textContent = cell.internal_resistance + ' mΩ';
+                document.getElementById('modal-cycles').textContent = cell.cycle_count;
+                
+                const alarmsEl = document.getElementById('modal-alarms');
+                if (cell.alarms && cell.alarms.length > 0) {
+                    alarmsEl.innerHTML = cell.alarms.map(a => `
+                        <div class="alarm-item">
+                            <span class="alarm-icon">⚠️</span>
+                            <span class="alarm-text">${a}</span>
+                        </div>
+                    `).join('');
+                } else {
+                    alarmsEl.innerHTML = '';
+                }
+                
+                document.getElementById('cell-modal').classList.add('active');
+            } catch (e) {
+                console.error('加载电芯详情失败', e);
+            }
+        }
+        
+        function closeModal() {
+            document.getElementById('cell-modal').classList.remove('active');
+        }
+        
+        document.getElementById('cell-modal').addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal-overlay')) {
+                closeModal();
+            }
+        });
+        
+        // 初始化
+        loadOverview();
+        initCellChart();
+        setInterval(loadOverview, 30000);
+    </script>
+</body>
+</html>
